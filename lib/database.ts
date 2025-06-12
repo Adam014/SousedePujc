@@ -50,12 +50,17 @@ export const db = {
   },
 
   async updateUser(id: string, userData: Partial<User>): Promise<User | null> {
-    const { data, error } = await supabase
-      .from("users")
-      .update({ ...userData, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single()
+    const updateData = {
+      ...userData,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Pokud se aktualizuje avatar_url na null, explicitně to nastavíme
+    if (userData.avatar_url === null) {
+      updateData.avatar_url = null
+    }
+
+    const { data, error } = await supabase.from("users").update(updateData).eq("id", id).select().single()
 
     if (error) {
       console.error("Error updating user:", error)

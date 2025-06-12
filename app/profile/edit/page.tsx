@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Camera, Save, ArrowLeft } from "lucide-react"
+import { Save, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
+import AvatarUpload from "@/components/profile/avatar-upload"
 
 export default function EditProfilePage() {
   const { user } = useAuth()
@@ -26,8 +26,9 @@ export default function EditProfilePage() {
     phone: "",
     address: "",
     bio: "",
-    avatar_url: "",
   })
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -40,9 +41,10 @@ export default function EditProfilePage() {
       email: user.email || "",
       phone: user.phone || "",
       address: user.address || "",
-      bio: "",
-      avatar_url: user.avatar_url || "",
+      bio: user.bio || "",
     })
+
+    setAvatarUrl(user.avatar_url || null)
   }, [user, router])
 
   const handleInputChange = (field: string, value: string) => {
@@ -105,19 +107,12 @@ export default function EditProfilePage() {
             )}
 
             {/* Avatar */}
-            <div className="flex items-center space-x-6">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={formData.avatar_url || "/placeholder.svg"} />
-                <AvatarFallback className="text-2xl">{formData.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-              <div>
-                <Button type="button" variant="outline" size="sm">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Změnit fotografii
-                </Button>
-                <p className="text-sm text-gray-500 mt-1">JPG, PNG nebo GIF (max. 2MB)</p>
-              </div>
-            </div>
+            <AvatarUpload
+              userId={user.id}
+              currentAvatarUrl={avatarUrl}
+              userName={formData.name}
+              onAvatarUpdate={setAvatarUrl}
+            />
 
             {/* Základní údaje */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

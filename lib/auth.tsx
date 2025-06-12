@@ -14,6 +14,7 @@ interface AuthContextType {
   register: (userData: { email: string; name: string; password: string }) => Promise<boolean>
   resendVerification: (email: string) => Promise<boolean>
   loading: boolean
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -193,7 +194,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const contextValue = { user, login, logout, register, resendVerification, loading }
+  // Přidáme funkci pro refresh uživatele
+  const refreshUser = async () => {
+    if (!user) return
+
+    try {
+      const userData = await db.getUserById(user.id)
+      if (userData) {
+        setUser(userData)
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error)
+    }
+  }
+
+  // Přidáme refreshUser do context value
+  const contextValue = { user, login, logout, register, resendVerification, refreshUser, loading }
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
