@@ -16,7 +16,7 @@ import NotificationDropdown from "@/components/notifications/notification-dropdo
 import SearchAutocomplete from "@/components/search/search-autocomplete"
 
 export default function Header() {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshUser } = useAuth()
 
   return (
     <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-soft">

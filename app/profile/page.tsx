@@ -18,7 +18,7 @@ import RatingDisplay from "@/components/ui/rating-display"
 import BookingRequestCard from "@/components/bookings/booking-request-card"
 
 export default function ProfilePage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, refreshUser } = useAuth()
   const router = useRouter()
   const [userItems, setUserItems] = useState<Item[]>([])
   const [userBookings, setUserBookings] = useState<Booking[]>([])
@@ -29,9 +29,6 @@ export default function ProfilePage() {
 
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get("tab") || "items"
-
-  // Přidáme state pro avatar
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -67,13 +64,6 @@ export default function ProfilePage() {
 
     loadUserData()
   }, [user, authLoading, router])
-
-  // V useEffect nastavíme avatar
-  useEffect(() => {
-    if (user) {
-      setCurrentAvatarUrl(user.avatar_url || null)
-    }
-  }, [user])
 
   if (authLoading) {
     return (
@@ -118,9 +108,8 @@ export default function ProfilePage() {
       <Card className="mb-8">
         <CardContent className="p-6">
           <div className="flex items-center space-x-6">
-            {/* V Avatar komponentě použijeme currentAvatarUrl místo user.avatar_url */}
             <Avatar className="h-24 w-24">
-              <AvatarImage src={currentAvatarUrl || "/placeholder.svg"} />
+              <AvatarImage src={user.avatar_url || "/placeholder.svg"} />
               <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
             </Avatar>
 
