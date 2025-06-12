@@ -12,7 +12,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Save, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
-import AvatarUpload from "@/components/profile/avatar-upload"
 import { db } from "@/lib/database"
 
 export default function EditProfilePage() {
@@ -120,14 +119,6 @@ export default function EditProfilePage() {
                 <AlertDescription className="text-green-800">{success}</AlertDescription>
               </Alert>
             )}
-
-            {/* Avatar Upload */}
-            <AvatarUpload
-              userId={user.id}
-              currentAvatarUrl={avatarUrl}
-              userName={formData.name}
-              onAvatarUpdate={handleAvatarUpdate}
-            />
 
             {/* Základní údaje */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

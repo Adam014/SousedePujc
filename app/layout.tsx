@@ -8,7 +8,7 @@ import Header from "@/components/layout/header"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SousedePůjč - Komunitní výpůjčky",
+  title: "Komunitní výpůjčky mezi sousedy",
   description:
     "Moderní platforma pro půjčování věcí mezi sousedy. Půjčte si nářadí, sportovní vybavení a další předměty od lidí ve vaší komunitě.",
   keywords: "půjčování, komunita, sousedé, nářadí, sportovní vybavení, sdílená ekonomika, sharing economy",
