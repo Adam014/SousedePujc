@@ -5,6 +5,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "./types"
 import { db } from "./database"
+import { supabase } from "./supabase"
 
 interface AuthContextType {
   user: User | null
@@ -23,34 +24,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const savedUserId = localStorage.getItem("currentUserId")
-        if (savedUserId) {
-          const userData = await db.getUserById(savedUserId)
+        // Zkontrolujeme, zda je uživatel přihlášen v Supabase
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (session?.user) {
+          // Získáme uživatelská data z naší databáze
+          const userData = await db.getUserByEmail(session.user.email || "")
           if (userData) {
             setUser(userData)
           } else {
-            localStorage.removeItem("currentUserId")
+            // Pokud uživatel existuje v Supabase, ale ne v naší DB, odhlásíme ho
+            await supabase.auth.signOut()
           }
         }
       } catch (error) {
         console.error("Error loading user:", error)
-        localStorage.removeItem("currentUserId")
       } finally {
         setLoading(false)
       }
     }
 
+    // Načteme uživatele při startu
     loadUser()
+
+    // Nastavíme listener pro změny autentizačního stavu
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        const userData = await db.getUserByEmail(session.user.email || "")
+        setUser(userData || null)
+      } else if (event === "SIGNED_OUT") {
+        setUser(null)
+      }
+    })
+
+    // Cleanup listener při unmount
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const foundUser = await db.getUserByEmail(email)
-      if (foundUser) {
-        setUser(foundUser)
-        localStorage.setItem("currentUserId", foundUser.id)
+      // Přihlášení pomocí Supabase Auth
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        console.error("Login error:", error.message)
+        return false
+      }
+
+      // Získáme uživatelská data z naší databáze
+      const userData = await db.getUserByEmail(email)
+      if (userData) {
+        setUser(userData)
         return true
       }
+
+      // Pokud uživatel neexistuje v naší DB, odhlásíme ho ze Supabase
+      await supabase.auth.signOut()
       return false
     } catch (error) {
       console.error("Login error:", error)
@@ -58,18 +96,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
-    localStorage.removeItem("currentUserId")
   }
 
   const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {
     try {
+      // Zkontrolujeme, zda uživatel již existuje v naší databázi
       const existingUser = await db.getUserByEmail(userData.email)
       if (existingUser) {
         return false
       }
 
+      // Registrace pomocí Supabase Auth
+      const { error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            name: userData.name,
+          },
+        },
+      })
+
+      if (error) {
+        console.error("Registration error:", error.message)
+        return false
+      }
+
+      // Vytvoříme uživatele v naší databázi
       const newUser = await db.createUser({
         email: userData.email,
         name: userData.name,
@@ -79,7 +135,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       setUser(newUser)
-      localStorage.setItem("currentUserId", newUser.id)
       return true
     } catch (error) {
       console.error("Registration error:", error)
