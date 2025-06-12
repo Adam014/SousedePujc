@@ -173,7 +173,6 @@ export default function ProfilePage() {
 
               {user.bio && privacySettings.show_bio && (
                 <div className="text-gray-600 mb-3">
-                  <p className="font-medium text-sm text-gray-500 mb-1">O mně:</p>
                   <p>{user.bio}</p>
                 </div>
               )}
