@@ -133,16 +133,6 @@ export default function LoginPage() {
                 placeholder="••••••••"
               />
             </div>
-
-            {/* Demo účty */}
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm font-medium text-blue-800 mb-2">Demo účty (heslo: heslo123):</p>
-              <div className="text-xs text-blue-700 space-y-1">
-                <div>jan.novak@email.cz (uživatel)</div>
-                <div>marie.svoboda@email.cz (uživatel)</div>
-                <div>admin@community.cz (administrátor)</div>
-              </div>
-            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">

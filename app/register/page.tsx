@@ -63,7 +63,7 @@ export default function RegisterPage() {
         // Po 3 sekundách přesměrujeme na přihlášení
         setTimeout(() => {
           router.push("/login")
-        }, 3000)
+        }, 5000)
       } else {
         setError("Uživatel s tímto e-mailem již existuje")
       }
