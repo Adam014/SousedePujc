@@ -9,3 +9,4 @@
 9. Opravit warningy
 10. Implementovat Realtime komunikaci mezi majitelem a tim co si to rezervoval
 11. Moznost mit v kazdem jednotlivem okne jinou uzivatelskou session
+12. Pridat mapu kde uzivatel se muze podivat kde se nachazi nabizene predmety, kdyz povoli lokaci tak mu ukaze jeho okoli
