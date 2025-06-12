@@ -113,7 +113,7 @@ export default function HomePage() {
       <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
 
       {/* Statistiky */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-8 rounded-2xl text-center shadow-soft card-hover">
           <div className="text-4xl font-bold text-blue-600 mb-3">{items.length}</div>
           <div className="text-gray-700 font-medium">Dostupných předmětů</div>
@@ -126,7 +126,7 @@ export default function HomePage() {
           <div className="text-4xl font-bold text-purple-600 mb-3">500+</div>
           <div className="text-gray-700 font-medium">Úspěšných výpůjček</div>
         </div>
-      </div>
+      </div> */}
 
       {/* Seznam předmětů */}
       <div className="mb-4">
