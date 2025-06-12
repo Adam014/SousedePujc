@@ -6,13 +6,13 @@ import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Camera, X, Loader2, AlertCircle, Info } from "lucide-react"
-import { avatarUpload } from "@/lib/avatar-upload"
+import { Camera, X, Loader2, AlertCircle } from "lucide-react"
+import { avatarService } from "@/lib/avatar"
 import { db } from "@/lib/database"
 
 interface AvatarUploadProps {
   userId: string
-  currentAvatarUrl?: string
+  currentAvatarUrl?: string | null
   userName: string
   onAvatarUpdate: (newUrl: string | null) => void
 }
@@ -21,69 +21,39 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     setError("")
     setSuccess("")
-
-    // Validace
-    if (!file.type.startsWith("image/")) {
-      setError("Vyberte prosím obrázek (JPG, PNG, GIF, WebP)")
-      return
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Soubor je příliš velký (max 2MB)")
-      return
-    }
-
-    // Vytvoření preview
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPreviewUrl(e.target?.result as string)
-    }
-    reader.onerror = () => {
-      setError("Chyba při čtení souboru")
-    }
-    reader.readAsDataURL(file)
-
-    // Upload
-    handleUpload(file)
-  }
-
-  const handleUpload = async (file: File) => {
     setUploading(true)
-    setError("")
-    setSuccess("")
 
     try {
-      const result = await avatarUpload.uploadAvatar(userId, file)
+      // Upload souboru
+      const result = await avatarService.uploadAvatar(userId, file)
 
       if (result.success && result.url) {
-        // Aktualizujeme URL v databázi
+        // Aktualizace v databázi
         await db.updateUser(userId, { avatar_url: result.url })
+
+        // Aktualizace v UI
         onAvatarUpdate(result.url)
-        setPreviewUrl(null)
         setSuccess("Profilová fotografie byla úspěšně nahrána!")
 
-        // Skryjeme success zprávu po 3 sekundách
+        // Skrytí zprávy po 3 sekundách
         setTimeout(() => setSuccess(""), 3000)
       } else {
         setError(result.error || "Chyba při nahrávání")
-        setPreviewUrl(null)
       }
     } catch (error) {
       console.error("Upload error:", error)
       setError("Neočekávaná chyba při nahrávání")
-      setPreviewUrl(null)
     } finally {
       setUploading(false)
-      // Vyčistíme input
+      // Vyčištění input
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -100,9 +70,13 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
     setSuccess("")
 
     try {
-      const success = await avatarUpload.deleteAvatar(userId)
+      const success = await avatarService.deleteAvatar(userId)
+
       if (success) {
+        // Aktualizace v databázi
         await db.updateUser(userId, { avatar_url: null })
+
+        // Aktualizace v UI
         onAvatarUpdate(null)
         setSuccess("Profilová fotografie byla odstraněna")
         setTimeout(() => setSuccess(""), 3000)
@@ -117,15 +91,13 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
     }
   }
 
-  const displayUrl = previewUrl || currentAvatarUrl
-
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-6">
         <div className="relative">
           <Avatar className="h-24 w-24">
-            <AvatarImage src={displayUrl || "/placeholder.svg"} />
-            <AvatarFallback className="text-2xl">{userName.charAt(0)}</AvatarFallback>
+            <AvatarImage src={currentAvatarUrl || "/placeholder.svg"} />
+            <AvatarFallback className="text-2xl">{userName.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
 
           {uploading && (
@@ -163,32 +135,13 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error}
-            {error.includes("bucket") && (
-              <div className="mt-2 text-sm">
-                <strong>Řešení:</strong> Jděte do Supabase Dashboard → Storage → vytvořte bucket s názvem "avatars"
-                (public: true)
-              </div>
-            )}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {success && (
         <Alert className="border-green-200 bg-green-50">
           <AlertDescription className="text-green-800">{success}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Informační zpráva o konfiguraci */}
-      {!currentAvatarUrl && !error && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            <strong>První použití:</strong> Pokud se zobrazí chyba, ujistěte se, že máte vytvořený bucket "avatars" v
-            Supabase Dashboard → Storage.
-          </AlertDescription>
         </Alert>
       )}
 

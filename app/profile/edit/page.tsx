@@ -13,9 +13,10 @@ import { Save, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
 import AvatarUpload from "@/components/profile/avatar-upload"
+import { db } from "@/lib/database"
 
 export default function EditProfilePage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -57,20 +58,34 @@ export default function EditProfilePage() {
     setLoading(true)
 
     try {
-      // Simulace aktualizace profilu
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Aktualizace uživatele v databázi
+      await db.updateUser(user!.id, {
+        name: formData.name,
+        phone: formData.phone || undefined,
+        address: formData.address || undefined,
+        bio: formData.bio || undefined,
+      })
 
-      // V produkci by se zde aktualizoval uživatel v databázi
+      // Refresh uživatele v auth contextu
+      await refreshUser()
+
       setSuccess("Profil byl úspěšně aktualizován!")
 
       setTimeout(() => {
         router.push("/profile")
       }, 2000)
     } catch (error) {
+      console.error("Update profile error:", error)
       setError("Došlo k chybě při aktualizaci profilu")
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAvatarUpdate = (newUrl: string | null) => {
+    setAvatarUrl(newUrl)
+    // Refresh uživatele pro aktualizaci avatar_url
+    refreshUser()
   }
 
   if (!user) {
@@ -106,12 +121,12 @@ export default function EditProfilePage() {
               </Alert>
             )}
 
-            {/* Avatar */}
+            {/* Avatar Upload */}
             <AvatarUpload
               userId={user.id}
               currentAvatarUrl={avatarUrl}
               userName={formData.name}
-              onAvatarUpdate={setAvatarUrl}
+              onAvatarUpdate={handleAvatarUpdate}
             />
 
             {/* Základní údaje */}
@@ -128,13 +143,8 @@ export default function EditProfilePage() {
 
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  required
-                />
+                <Input id="email" type="email" value={formData.email} disabled className="bg-gray-50" />
+                <p className="text-xs text-gray-500">E-mail nelze změnit</p>
               </div>
             </div>
 
