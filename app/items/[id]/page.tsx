@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +17,7 @@ import { useAuth } from "@/lib/auth"
 import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
 import DatabaseError from "@/components/error/database-error"
+import ImageGallery from "@/components/items/image-gallery"
 
 const conditionLabels = {
   excellent: "Výborný",
@@ -178,29 +178,7 @@ export default function ItemDetailPage() {
         {/* Levý sloupec - Obrázky a základní info */}
         <div className="lg:col-span-2">
           <div className="mb-6">
-            <div className="relative aspect-video rounded-lg overflow-hidden mb-4">
-              <Image
-                src={item.images[0] || "/placeholder.svg?height=400&width=600"}
-                alt={item.title}
-                fill
-                className="object-cover"
-              />
-            </div>
-
-            {item.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
-                {item.images.slice(1, 5).map((image, index) => (
-                  <div key={index} className="relative aspect-square rounded overflow-hidden">
-                    <Image
-                      src={image || "/placeholder.svg"}
-                      alt={`${item.title} - obrázek ${index + 2}`}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            <ImageGallery images={item.images} alt={item.title} />
           </div>
 
           <div className="space-y-6">

@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Upload, ArrowLeft } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import type { Category } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
+import ImageUpload from "@/components/items/image-upload"
 
 const conditionOptions = [
   { value: "excellent", label: "Výborný" },
@@ -33,6 +34,7 @@ export default function NewItemPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isFree, setIsFree] = useState(false)
+  const [images, setImages] = useState<string[]>([])
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -99,7 +101,7 @@ export default function NewItemPage() {
         deposit_amount: Number.parseFloat(formData.deposit_amount) || 0,
         is_available: true,
         location: formData.location.trim(),
-        images: ["/placeholder.svg?height=300&width=400"],
+        images: images.length > 0 ? images : ["/placeholder.svg?height=300&width=400"],
       }
 
       await db.createItem(itemData)
@@ -126,6 +128,10 @@ export default function NewItemPage() {
     if (checked) {
       setFormData((prev) => ({ ...prev, daily_rate: "0" }))
     }
+  }
+
+  const handleImagesChange = (newImages: string[]) => {
+    setImages(newImages)
   }
 
   if (authLoading) {
@@ -288,14 +294,7 @@ export default function NewItemPage() {
 
             <div className="space-y-2">
               <Label>Fotografie</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">Přetáhněte fotografie sem nebo klikněte pro výběr</p>
-                <p className="text-sm text-gray-500">Podporované formáty: JPG, PNG, GIF (max. 5MB)</p>
-                <Button type="button" variant="outline" className="mt-4">
-                  Vybrat soubory
-                </Button>
-              </div>
+              <ImageUpload maxImages={3} onImagesChange={handleImagesChange} />
             </div>
 
             <div className="bg-blue-50 p-4 rounded-lg">
