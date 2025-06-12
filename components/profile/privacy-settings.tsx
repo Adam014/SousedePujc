@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -21,10 +22,18 @@ export default function PrivacySettings({ user, onChange }: PrivacySettingsProps
   }
 
   // Použijeme nastavení uživatele nebo výchozí hodnoty
-  const settings = user.privacy_settings || defaultSettings
+  const [settings, setSettings] = useState(user.privacy_settings || defaultSettings)
+
+  // Aktualizujeme lokální stav, když se změní user prop
+  useEffect(() => {
+    if (user.privacy_settings) {
+      setSettings(user.privacy_settings)
+    }
+  }, [user.privacy_settings])
 
   const handleToggle = (key: keyof typeof settings) => {
     const newSettings = { ...settings, [key]: !settings[key] }
+    setSettings(newSettings)
     onChange(newSettings)
   }
 

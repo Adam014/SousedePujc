@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Save, ArrowLeft, User } from "lucide-react"
+import { Save, ArrowLeft, User, Shield } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
 import { db } from "@/lib/database"
@@ -55,14 +55,11 @@ export default function EditProfilePage() {
     })
 
     setAvatarUrl(user.avatar_url || null)
-    setPrivacySettings(
-      user.privacy_settings || {
-        show_email: false,
-        show_phone: false,
-        show_address: false,
-        show_bio: true,
-      },
-    )
+
+    // Důležité: Nastavíme privacy_settings z uživatele, pokud existují
+    if (user.privacy_settings) {
+      setPrivacySettings(user.privacy_settings)
+    }
   }, [user, router])
 
   const handleInputChange = (field: string, value: string) => {
@@ -75,7 +72,7 @@ export default function EditProfilePage() {
     setLoading(true)
 
     try {
-      // Aktualizace uživatele v databázi
+      // Aktualizace uživatele v databázi včetně nastavení soukromí
       await db.updateUser(user!.id, {
         name: formData.name,
         phone: formData.phone || undefined,
@@ -106,6 +103,27 @@ export default function EditProfilePage() {
     refreshUser()
   }
 
+  // Funkce pro uložení nastavení soukromí
+  const savePrivacySettings = async () => {
+    setLoading(true)
+    setError("")
+    try {
+      await db.updateUser(user!.id, {
+        privacy_settings: privacySettings,
+      })
+      await refreshUser()
+      setSuccess("Nastavení soukromí bylo úspěšně aktualizováno!")
+      setTimeout(() => {
+        router.push("/profile")
+      }, 2000)
+    } catch (error) {
+      console.error("Update privacy settings error:", error)
+      setError("Došlo k chybě při aktualizaci nastavení soukromí")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!user) {
     return null
   }
@@ -127,7 +145,7 @@ export default function EditProfilePage() {
             Osobní údaje
           </TabsTrigger>
           <TabsTrigger value="privacy">
-            <User className="h-4 w-4 mr-2" />
+            <Shield className="h-4 w-4 mr-2" />
             Soukromí
           </TabsTrigger>
         </TabsList>
@@ -247,26 +265,7 @@ export default function EditProfilePage() {
             <Button variant="outline" onClick={() => router.back()} className="flex-1">
               Zrušit
             </Button>
-            <Button
-              onClick={async () => {
-                setLoading(true)
-                try {
-                  await db.updateUser(user.id, { privacy_settings: privacySettings })
-                  await refreshUser()
-                  setSuccess("Nastavení soukromí bylo úspěšně aktualizováno!")
-                  setTimeout(() => {
-                    router.push("/profile")
-                  }, 2000)
-                } catch (error) {
-                  console.error("Update privacy settings error:", error)
-                  setError("Došlo k chybě při aktualizaci nastavení soukromí")
-                } finally {
-                  setLoading(false)
-                }
-              }}
-              disabled={loading}
-              className="flex-1"
-            >
+            <Button onClick={savePrivacySettings} disabled={loading} className="flex-1">
               {loading ? (
                 "Ukládání..."
               ) : (

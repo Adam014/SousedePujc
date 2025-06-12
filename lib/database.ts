@@ -60,6 +60,11 @@ export const db = {
       updateData.avatar_url = null
     }
 
+    // Pokud se aktualizuje privacy_settings, ujistíme se, že je to objekt
+    if (userData.privacy_settings) {
+      updateData.privacy_settings = userData.privacy_settings
+    }
+
     const { data, error } = await supabase.from("users").update(updateData).eq("id", id).select().single()
 
     if (error) {
