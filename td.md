@@ -1,4 +1,3 @@
-1. Upravit profil, zobrazeni vsech moznych informaci, rozlisovat co chci aby bylo videt a co ne, moznost nahrat fotku
 2. Pridat predmet, moznost pridani fotek, maximalne 3 fotky, ukladat a nejak setrne, at nezabiraji tolik mista, kdyz se prida vice fotek tak na strance daneho predmetu moznost proklikat fotky
 3. Moznost upravit vlastni nabidku predmetu
 4. Opravit kalendar, zobrazuje se divne a je glitchy
