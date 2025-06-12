@@ -7,3 +7,5 @@
 9. Opravit warningy
 10. Implementovat Realtime komunikaci mezi majitelem a tim co si to rezervoval
 11. Moznost mit v kazdem jednotlivem okne jinou uzivatelskou session
+12. Pridat mapu, kde se zobrazi predmety k ponuce a kde se nachazi, kdyz uzivatel povoli polohu ukaze mu pro zadany radius jeho okoli s predmetama
+13. Schopnost zobrazovat profily ostatnich, pouze jako public, takze videni informaci co maji nastaveny ze budou viditelne a jejich nabidky
