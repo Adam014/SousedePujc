@@ -85,10 +85,6 @@ export default function EditProfilePage() {
       await refreshUser()
 
       setSuccess("Profil byl úspěšně aktualizován!")
-
-      setTimeout(() => {
-        router.push("/profile")
-      }, 2000)
     } catch (error) {
       console.error("Update profile error:", error)
       setError("Došlo k chybě při aktualizaci profilu")
@@ -113,9 +109,6 @@ export default function EditProfilePage() {
       })
       await refreshUser()
       setSuccess("Nastavení soukromí bylo úspěšně aktualizováno!")
-      setTimeout(() => {
-        router.push("/profile")
-      }, 2000)
     } catch (error) {
       console.error("Update privacy settings error:", error)
       setError("Došlo k chybě při aktualizaci nastavení soukromí")
