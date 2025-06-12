@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth"
-import { Package } from "lucide-react"
+import { Package, Mail, CheckCircle } from "lucide-react"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -23,6 +23,7 @@ export default function RegisterPage() {
     agreeToTerms: false,
   })
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const { register } = useAuth()
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setSuccess(false)
 
     // Validace
     if (formData.password !== formData.confirmPassword) {
@@ -57,7 +59,11 @@ export default function RegisterPage() {
       })
 
       if (success) {
-        router.push("/")
+        setSuccess(true)
+        // Po 3 sekundách přesměrujeme na přihlášení
+        setTimeout(() => {
+          router.push("/login")
+        }, 3000)
       } else {
         setError("Uživatel s tímto e-mailem již existuje")
       }
@@ -70,6 +76,30 @@ export default function RegisterPage() {
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Registrace úspěšná!</h2>
+            <div className="bg-green-50 p-4 rounded-lg mb-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <Mail className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-green-800">Ověřte svůj e-mail</span>
+              </div>
+              <p className="text-sm text-green-700">
+                Na adresu <strong>{formData.email}</strong> jsme odeslali ověřovací e-mail. Klikněte na odkaz v e-mailu
+                pro dokončení registrace.
+              </p>
+            </div>
+            <p className="text-sm text-gray-600">Budete automaticky přesměrováni na přihlašovací stránku...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

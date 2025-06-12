@@ -11,25 +11,33 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
-import { Package } from "lucide-react"
+import { Package, Mail } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const [resendingVerification, setResendingVerification] = useState(false)
+  const { login, resendVerification } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setNeedsVerification(false)
     setLoading(true)
 
     try {
-      const success = await login(email, password)
-      if (success) {
+      const result = await login(email, password)
+      if (result.success) {
         router.push("/")
+      } else if (result.needsVerification) {
+        setNeedsVerification(true)
+        setError(
+          "Váš e-mail ještě nebyl ověřen. Zkontrolujte svou e-mailovou schránku a klikněte na odkaz pro ověření.",
+        )
       } else {
         setError("Neplatné přihlašovací údaje")
       }
@@ -37,6 +45,27 @@ export default function LoginPage() {
       setError("Došlo k chybě při přihlašování")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError("Zadejte prosím e-mailovou adresu")
+      return
+    }
+
+    setResendingVerification(true)
+    try {
+      const success = await resendVerification(email)
+      if (success) {
+        setError("Ověřovací e-mail byl znovu odeslán. Zkontrolujte svou e-mailovou schránku.")
+      } else {
+        setError("Nepodařilo se znovu odeslat ověřovací e-mail")
+      }
+    } catch (error) {
+      setError("Došlo k chybě při odesílání e-mailu")
+    } finally {
+      setResendingVerification(false)
     }
   }
 
@@ -54,9 +83,31 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <Alert variant="destructive">
+              <Alert variant={needsVerification ? "default" : "destructive"}>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
+            )}
+
+            {needsVerification && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Mail className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium text-blue-800">Ověření e-mailu</span>
+                </div>
+                <p className="text-sm text-blue-700 mb-3">
+                  Pro dokončení registrace musíte ověřit svou e-mailovou adresu.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResendVerification}
+                  disabled={resendingVerification}
+                  className="w-full"
+                >
+                  {resendingVerification ? "Odesílání..." : "Znovu odeslat ověřovací e-mail"}
+                </Button>
+              </div>
             )}
 
             <div className="space-y-2">
@@ -85,7 +136,7 @@ export default function LoginPage() {
 
             {/* Demo účty */}
             <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm font-medium text-blue-800 mb-2">Demo účty:</p>
+              <p className="text-sm font-medium text-blue-800 mb-2">Demo účty (heslo: heslo123):</p>
               <div className="text-xs text-blue-700 space-y-1">
                 <div>jan.novak@email.cz (uživatel)</div>
                 <div>marie.svoboda@email.cz (uživatel)</div>
