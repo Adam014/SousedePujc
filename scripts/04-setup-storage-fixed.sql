@@ -1,17 +1,24 @@
--- Vytvoření bucket pro avatary (pokud neexistuje)
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES (
-  'avatars', 
-  'avatars', 
-  true, 
-  2097152, -- 2MB limit
-  ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
-)
-ON CONFLICT (id) DO UPDATE SET
-  file_size_limit = 2097152,
-  allowed_mime_types = ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+-- Vytvoření bucket pro avatary pomocí Supabase Dashboard nebo SQL funkce
+-- Poznámka: Tento skript by měl být spuštěn s admin právy nebo přes Supabase Dashboard
 
--- Smazání existujících policies
+-- Nejprve zkontrolujeme, zda bucket existuje
+DO $$
+BEGIN
+  -- Pokusíme se vytvořit bucket (toto může vyžadovat admin práva)
+  INSERT INTO storage.buckets (id, name, public) 
+  VALUES ('avatars', 'avatars', true)
+  ON CONFLICT (id) DO NOTHING;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Insufficient privileges to create bucket. Please create bucket "avatars" manually in Supabase Dashboard.';
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Bucket may already exist or other error occurred: %', SQLERRM;
+END $$;
+
+-- Vytvoření RLS policies pro storage.objects
+-- Tyto policies by měly fungovat i bez admin práv
+
+-- Smazání existujících policies (pokud existují)
 DROP POLICY IF EXISTS "Avatar images are publicly accessible" ON storage.objects;
 DROP POLICY IF EXISTS "Users can upload their own avatar" ON storage.objects;
 DROP POLICY IF EXISTS "Users can update their own avatar" ON storage.objects;
@@ -26,10 +33,9 @@ CREATE POLICY "Users can upload their own avatar" ON storage.objects
 FOR INSERT WITH CHECK (
   bucket_id = 'avatars' 
   AND auth.uid()::text = (storage.foldername(name))[1]
-  AND (storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'gif', 'webp')
 );
 
--- Policy pro update avatarů (pouze vlastní)
+-- Policy pro update avatarů (pouze vlastní)  
 CREATE POLICY "Users can update their own avatar" ON storage.objects
 FOR UPDATE USING (
   bucket_id = 'avatars' 
@@ -42,6 +48,3 @@ FOR DELETE USING (
   bucket_id = 'avatars' 
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
-
--- Povolit RLS na storage.objects (pokud není již povoleno)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;

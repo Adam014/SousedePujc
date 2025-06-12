@@ -6,7 +6,7 @@ import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Camera, X, Loader2 } from "lucide-react"
+import { Camera, X, Loader2, AlertCircle } from "lucide-react"
 import { avatarUpload } from "@/lib/avatar-upload"
 import { db } from "@/lib/database"
 
@@ -20,6 +20,7 @@ interface AvatarUploadProps {
 export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAvatarUpdate }: AvatarUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -27,9 +28,12 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
     const file = event.target.files?.[0]
     if (!file) return
 
+    setError("")
+    setSuccess("")
+
     // Validace
     if (!file.type.startsWith("image/")) {
-      setError("Vyberte prosím obrázek")
+      setError("Vyberte prosím obrázek (JPG, PNG, GIF)")
       return
     }
 
@@ -43,6 +47,9 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
     reader.onload = (e) => {
       setPreviewUrl(e.target?.result as string)
     }
+    reader.onerror = () => {
+      setError("Chyba při čtení souboru")
+    }
     reader.readAsDataURL(file)
 
     // Upload
@@ -52,8 +59,15 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
   const handleUpload = async (file: File) => {
     setUploading(true)
     setError("")
+    setSuccess("")
 
     try {
+      // Nejprve zkontrolujeme zdraví bucket
+      const bucketHealthy = await avatarUpload.checkBucketHealth()
+      if (!bucketHealthy) {
+        throw new Error("Storage není dostupný")
+      }
+
       const result = await avatarUpload.uploadAvatar(userId, file)
 
       if (result.success && result.url) {
@@ -61,11 +75,16 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
         await db.updateUser(userId, { avatar_url: result.url })
         onAvatarUpdate(result.url)
         setPreviewUrl(null)
+        setSuccess("Profilová fotografie byla úspěšně nahrána!")
+
+        // Skryjeme success zprávu po 3 sekundách
+        setTimeout(() => setSuccess(""), 3000)
       } else {
         setError(result.error || "Chyba při nahrávání")
         setPreviewUrl(null)
       }
     } catch (error) {
+      console.error("Upload error:", error)
       setError("Neočekávaná chyba při nahrávání")
       setPreviewUrl(null)
     } finally {
@@ -78,18 +97,26 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
   }
 
   const handleRemoveAvatar = async () => {
+    if (!confirm("Opravdu chcete odstranit profilovou fotografii?")) {
+      return
+    }
+
     setUploading(true)
     setError("")
+    setSuccess("")
 
     try {
       const success = await avatarUpload.deleteAvatar(userId)
       if (success) {
         await db.updateUser(userId, { avatar_url: null })
         onAvatarUpdate(null)
+        setSuccess("Profilová fotografie byla odstraněna")
+        setTimeout(() => setSuccess(""), 3000)
       } else {
         setError("Chyba při mazání avataru")
       }
     } catch (error) {
+      console.error("Remove avatar error:", error)
       setError("Neočekávaná chyba při mazání")
     } finally {
       setUploading(false)
@@ -141,11 +168,24 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
 
       {error && (
         <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+      {success && (
+        <Alert className="border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
     </div>
   )
 }
