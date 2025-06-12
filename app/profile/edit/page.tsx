@@ -12,10 +12,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Save, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
-import AvatarUpload from "@/components/profile/avatar-upload"
+import { db } from "@/lib/database"
 
 export default function EditProfilePage() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -26,8 +26,9 @@ export default function EditProfilePage() {
     phone: "",
     address: "",
     bio: "",
-    avatar_url: "",
   })
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -40,9 +41,10 @@ export default function EditProfilePage() {
       email: user.email || "",
       phone: user.phone || "",
       address: user.address || "",
-      bio: "",
-      avatar_url: user.avatar_url || "",
+      bio: user.bio || "",
     })
+
+    setAvatarUrl(user.avatar_url || null)
   }, [user, router])
 
   const handleInputChange = (field: string, value: string) => {
@@ -55,20 +57,34 @@ export default function EditProfilePage() {
     setLoading(true)
 
     try {
-      // Simulace aktualizace profilu
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Aktualizace uživatele v databázi
+      await db.updateUser(user!.id, {
+        name: formData.name,
+        phone: formData.phone || undefined,
+        address: formData.address || undefined,
+        bio: formData.bio || undefined,
+      })
 
-      // V produkci by se zde aktualizoval uživatel v databázi
+      // Refresh uživatele v auth contextu
+      await refreshUser()
+
       setSuccess("Profil byl úspěšně aktualizován!")
 
       setTimeout(() => {
         router.push("/profile")
       }, 2000)
     } catch (error) {
+      console.error("Update profile error:", error)
       setError("Došlo k chybě při aktualizaci profilu")
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAvatarUpdate = (newUrl: string | null) => {
+    setAvatarUrl(newUrl)
+    // Refresh uživatele pro aktualizaci avatar_url
+    refreshUser()
   }
 
   if (!user) {
@@ -104,18 +120,6 @@ export default function EditProfilePage() {
               </Alert>
             )}
 
-            {/* Avatar */}
-            <AvatarUpload
-              user={user}
-              onAvatarUpdate={(newAvatarUrl) => {
-                setFormData((prev) => ({ ...prev, avatar_url: newAvatarUrl }))
-                // Aktualizujeme také user objekt pro okamžité zobrazení
-                if (user) {
-                  user.avatar_url = newAvatarUrl
-                }
-              }}
-            />
-
             {/* Základní údaje */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -130,13 +134,8 @@ export default function EditProfilePage() {
 
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  required
-                />
+                <Input id="email" type="email" value={formData.email} disabled className="bg-gray-50" />
+                <p className="text-xs text-gray-500">E-mail nelze změnit</p>
               </div>
             </div>
 

@@ -50,34 +50,20 @@ export const db = {
   },
 
   async updateUser(id: string, userData: Partial<User>): Promise<User | null> {
-    const { data, error } = await supabase
-      .from("users")
-      .update({ ...userData, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single()
+    const updateData = {
+      ...userData,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Pokud se aktualizuje avatar_url na null, explicitně to nastavíme
+    if (userData.avatar_url === null) {
+      updateData.avatar_url = null
+    }
+
+    const { data, error } = await supabase.from("users").update(updateData).eq("id", id).select().single()
 
     if (error) {
       console.error("Error updating user:", error)
-      throw error
-    }
-
-    return data
-  },
-
-  async updateUserAvatar(id: string, avatarUrl: string): Promise<User | null> {
-    const { data, error } = await supabase
-      .from("users")
-      .update({
-        avatar_url: avatarUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error("Error updating user avatar:", error)
       throw error
     }
 

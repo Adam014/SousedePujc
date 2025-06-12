@@ -17,6 +17,7 @@ import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
 import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
+import DatabaseError from "@/components/error/database-error"
 
 const conditionLabels = {
   excellent: "Výborný",
@@ -47,19 +48,33 @@ export default function ItemDetailPage() {
   }>({ from: undefined, to: undefined })
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
+  const [isNetworkError, setIsNetworkError] = useState(false)
   const [success, setSuccess] = useState("")
 
-  useEffect(() => {
-    const loadItem = async () => {
-      try {
-        const data = await db.getItemById(params.id as string)
-        setItem(data)
-      } catch (error) {
-        console.error("Error loading item:", error)
-      } finally {
-        setLoading(false)
-      }
+  const loadItem = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      setIsNetworkError(false)
+      const data = await db.getItemById(params.id as string)
+      setItem(data)
+    } catch (error: any) {
+      console.error("Error loading item:", error)
+
+      // Kontrola, zda jde o síťovou chybu (Supabase nedostupný)
+      const isNetworkErr =
+        error.message?.includes("NetworkError") ||
+        error.message?.includes("Failed to fetch") ||
+        error.message?.includes("Network request failed")
+
+      setIsNetworkError(isNetworkErr)
+      setError(isNetworkErr ? "Nepodařilo se připojit k databázi" : "Chyba při načítání předmětu")
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadItem()
   }, [params.id])
 
@@ -112,8 +127,15 @@ export default function ItemDetailPage() {
       setSuccess("Žádost o půjčení byla odeslána! Majitel vás bude kontaktovat.")
       setSelectedDates({ from: undefined, to: undefined })
       setMessage("")
-    } catch (error) {
-      setError("Došlo k chybě při odesílání žádosti")
+    } catch (error: any) {
+      console.error("Error creating booking:", error)
+
+      // Kontrola, zda jde o síťovou chybu
+      if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
+        setError("Došlo k chybě při připojení k databázi. Zkuste to prosím za chvíli.")
+      } else {
+        setError("Došlo k chybě při odesílání žádosti")
+      }
     } finally {
       setBookingLoading(false)
     }
@@ -125,6 +147,14 @@ export default function ItemDetailPage() {
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
+      </div>
+    )
+  }
+
+  if (isNetworkError) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <DatabaseError onRetry={loadItem} />
       </div>
     )
   }

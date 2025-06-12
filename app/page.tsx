@@ -7,6 +7,9 @@ import { db } from "@/lib/database"
 import ItemGrid from "@/components/items/item-grid"
 import CategoryFilter from "@/components/categories/category-filter"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { ServerOffIcon as DatabaseOff, RefreshCcw } from "lucide-react"
 
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([])
@@ -15,24 +18,35 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [isNetworkError, setIsNetworkError] = useState(false)
 
   const searchParams = useSearchParams()
 
-  useEffect(() => {
-    const loadItems = async () => {
-      try {
-        setLoading(true)
-        setError("")
-        const data = await db.getItems()
-        setItems(data)
-        setFilteredItems(data)
-      } catch (error) {
-        console.error("Error loading items:", error)
-        setError("Chyba při načítání předmětů")
-      } finally {
-        setLoading(false)
-      }
+  const loadItems = async () => {
+    try {
+      setLoading(true)
+      setError("")
+      setIsNetworkError(false)
+      const data = await db.getItems()
+      setItems(data)
+      setFilteredItems(data)
+    } catch (error: any) {
+      console.error("Error loading items:", error)
+
+      // Kontrola, zda jde o síťovou chybu (Supabase nedostupný)
+      const isNetworkErr =
+        error.message?.includes("NetworkError") ||
+        error.message?.includes("Failed to fetch") ||
+        error.message?.includes("Network request failed")
+
+      setIsNetworkError(isNetworkErr)
+      setError(isNetworkErr ? "Nepodařilo se připojit k databázi" : "Chyba při načítání předmětů")
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadItems()
   }, [])
 
@@ -80,15 +94,52 @@ export default function HomePage() {
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Zkusit znovu
-          </button>
-        </div>
+        <Alert variant={isNetworkError ? "destructive" : "default"} className="mb-6 max-w-3xl mx-auto">
+          <div className="flex items-start">
+            {isNetworkError && <DatabaseOff className="h-5 w-5 mr-2 mt-0.5" />}
+            <div>
+              <AlertTitle className="text-lg font-semibold mb-2">
+                {isNetworkError ? "Problém s připojením k databázi" : "Chyba při načítání"}
+              </AlertTitle>
+              <AlertDescription>
+                {isNetworkError ? (
+                  <div className="space-y-4">
+                    <p>
+                      Nepodařilo se připojit k databázovému serveru Supabase. Momentálně může být služba nedostupná nebo
+                      přetížená.
+                    </p>
+                    <p>Děkujeme za trpělivost, zkuste to prosím za chvíli znovu.</p>
+                  </div>
+                ) : (
+                  <p>{error}</p>
+                )}
+              </AlertDescription>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-center">
+            <Button
+              onClick={() => loadItems()}
+              variant={isNetworkError ? "destructive" : "default"}
+              className="flex items-center"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Zkusit znovu
+            </Button>
+          </div>
+        </Alert>
+
+        {/* Hero sekce pro případ výpadku */}
+        {isNetworkError && (
+          <div className="text-center mb-12 py-8">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-6">
+              Půjčte si od sousedů
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+              Objevte předměty ve vaší komunitě. Půjčte si to, co potřebujete, nebo nabídněte své věci ostatním. Šetřete
+              peníze a životní prostředí.
+            </p>
+          </div>
+        )}
       </div>
     )
   }
@@ -111,22 +162,6 @@ export default function HomePage() {
 
       {/* Filtry */}
       <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
-
-      {/* Statistiky */}
-      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-8 rounded-2xl text-center shadow-soft card-hover">
-          <div className="text-4xl font-bold text-blue-600 mb-3">{items.length}</div>
-          <div className="text-gray-700 font-medium">Dostupných předmětů</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 p-8 rounded-2xl text-center shadow-soft card-hover">
-          <div className="text-4xl font-bold text-green-600 mb-3">150+</div>
-          <div className="text-gray-700 font-medium">Spokojených uživatelů</div>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-8 rounded-2xl text-center shadow-soft card-hover">
-          <div className="text-4xl font-bold text-purple-600 mb-3">500+</div>
-          <div className="text-gray-700 font-medium">Úspěšných výpůjček</div>
-        </div>
-      </div> */}
 
       {/* Seznam předmětů */}
       <div className="mb-4">
