@@ -270,7 +270,6 @@ export default function ItemDetailPage() {
               {item.is_available && !isOwner && user && (
                 <>
                   <div>
-                    <Label className="text-base font-medium">Vyberte datum</Label>
                     <div className="mt-2">
                       <BookingCalendar itemId={item.id} selectedDates={selectedDates} onSelect={setSelectedDates} />
                     </div>
