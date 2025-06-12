@@ -6,7 +6,7 @@ import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Camera, X, Loader2, AlertCircle } from "lucide-react"
+import { Camera, X, Loader2, AlertCircle, Info } from "lucide-react"
 import { avatarUpload } from "@/lib/avatar-upload"
 import { db } from "@/lib/database"
 
@@ -33,7 +33,7 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
 
     // Validace
     if (!file.type.startsWith("image/")) {
-      setError("Vyberte prosím obrázek (JPG, PNG, GIF)")
+      setError("Vyberte prosím obrázek (JPG, PNG, GIF, WebP)")
       return
     }
 
@@ -62,12 +62,6 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
     setSuccess("")
 
     try {
-      // Nejprve zkontrolujeme zdraví bucket
-      const bucketHealthy = await avatarUpload.checkBucketHealth()
-      if (!bucketHealthy) {
-        throw new Error("Storage není dostupný")
-      }
-
       const result = await avatarUpload.uploadAvatar(userId, file)
 
       if (result.success && result.url) {
@@ -162,20 +156,39 @@ export default function AvatarUpload({ userId, currentAvatarUrl, userName, onAva
             )}
           </div>
 
-          <p className="text-sm text-gray-500">JPG, PNG nebo GIF (max. 2MB)</p>
+          <p className="text-sm text-gray-500">JPG, PNG, GIF nebo WebP (max. 2MB)</p>
         </div>
       </div>
 
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {error.includes("bucket") && (
+              <div className="mt-2 text-sm">
+                <strong>Řešení:</strong> Jděte do Supabase Dashboard → Storage → vytvořte bucket s názvem "avatars"
+                (public: true)
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
       {success && (
         <Alert className="border-green-200 bg-green-50">
           <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Informační zpráva o konfiguraci */}
+      {!currentAvatarUrl && !error && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            <strong>První použití:</strong> Pokud se zobrazí chyba, ujistěte se, že máte vytvořený bucket "avatars" v
+            Supabase Dashboard → Storage.
+          </AlertDescription>
         </Alert>
       )}
 

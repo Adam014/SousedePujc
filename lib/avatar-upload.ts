@@ -33,10 +33,10 @@ export const avatarUpload = {
       const timestamp = Date.now()
       const fileName = `${userId}/avatar-${timestamp}.${fileExt}`
 
-      // Nejprve smažeme starý avatar pokud existuje
-      await this.deleteAvatar(userId)
+      // Nejprve smažeme starý avatar pokud existuje (bez čekání na výsledek)
+      this.deleteAvatar(userId).catch(console.error)
 
-      // Upload nového avataru s explicitními options
+      // Upload nového avataru
       const { data, error } = await supabase.storage.from("avatars").upload(fileName, file, {
         cacheControl: "3600",
         upsert: false,
@@ -47,19 +47,31 @@ export const avatarUpload = {
         console.error("Upload error:", error)
 
         // Specifické chybové zprávy
-        if (error.message.includes("Bucket not found")) {
-          return { success: false, error: "Storage není správně nakonfigurován. Kontaktujte administrátora." }
+        if (error.message.includes("Bucket not found") || error.message.includes("bucket_not_found")) {
+          return {
+            success: false,
+            error: "Storage bucket neexistuje. Vytvořte bucket 'avatars' v Supabase Dashboard.",
+          }
         }
-        if (error.message.includes("Policy")) {
-          return { success: false, error: "Nemáte oprávnění k nahrání souboru." }
+        if (error.message.includes("Policy") || error.message.includes("policy")) {
+          return {
+            success: false,
+            error: "Nemáte oprávnění k nahrání souboru. Zkontrolujte RLS policies.",
+          }
         }
-        if (error.message.includes("File size")) {
+        if (error.message.includes("File size") || error.message.includes("size")) {
           return { success: false, error: "Soubor je příliš velký." }
+        }
+        if (error.message.includes("JSON.parse")) {
+          return {
+            success: false,
+            error: "Chyba komunikace se storage. Zkontrolujte konfiguraci Supabase.",
+          }
         }
 
         return {
           success: false,
-          error: error.message || "Chyba při nahrávání obrázku",
+          error: `Chyba při nahrávání: ${error.message}`,
         }
       }
 
@@ -78,8 +90,16 @@ export const avatarUpload = {
         success: true,
         url: urlData.publicUrl,
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Avatar upload error:", error)
+
+      if (error.message?.includes("JSON.parse")) {
+        return {
+          success: false,
+          error: "Chyba komunikace se storage. Zkontrolujte, zda je bucket 'avatars' vytvořen v Supabase Dashboard.",
+        }
+      }
+
       return {
         success: false,
         error: "Neočekávaná chyba při nahrávání",
@@ -97,7 +117,7 @@ export const avatarUpload = {
 
       if (listError) {
         // Pokud složka neexistuje, není to chyba
-        if (listError.message.includes("not found")) {
+        if (listError.message.includes("not found") || listError.message.includes("does not exist")) {
           return true
         }
         console.error("List files error:", listError)
@@ -130,61 +150,10 @@ export const avatarUpload = {
 
     try {
       const { data } = supabase.storage.from("avatars").getPublicUrl(`${userId}/${fileName}`)
-
       return data.publicUrl
     } catch (error) {
       console.error("Get avatar URL error:", error)
       return null
-    }
-  },
-
-  /**
-   * Zkontroluje, zda bucket existuje a je správně nakonfigurován
-   */
-  async checkBucketHealth(): Promise<{ healthy: boolean; error?: string }> {
-    try {
-      // Zkusíme získat informace o bucket
-      const { data, error } = await supabase.storage.getBucket("avatars")
-
-      if (error) {
-        console.error("Bucket health check failed:", error)
-        return {
-          healthy: false,
-          error: error.message.includes("not found")
-            ? "Storage bucket 'avatars' neexistuje. Vytvořte ho v Supabase Dashboard."
-            : error.message,
-        }
-      }
-
-      if (!data) {
-        return { healthy: false, error: "Bucket data nejsou dostupná" }
-      }
-
-      // Zkusíme test upload (malý soubor)
-      const testFile = new Blob(["test"], { type: "text/plain" })
-      const testFileName = `test-${Date.now()}.txt`
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(`health-check/${testFileName}`, testFile)
-
-      if (uploadError) {
-        return {
-          healthy: false,
-          error: `Upload test selhal: ${uploadError.message}`,
-        }
-      }
-
-      // Smažeme test soubor
-      await supabase.storage.from("avatars").remove([`health-check/${testFileName}`])
-
-      return { healthy: true }
-    } catch (error) {
-      console.error("Bucket health check error:", error)
-      return {
-        healthy: false,
-        error: "Neočekávaná chyba při kontrole storage",
-      }
     }
   },
 }
