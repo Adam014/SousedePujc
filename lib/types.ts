@@ -11,12 +11,6 @@ export interface User {
   bio?: string
   created_at: string
   updated_at: string
-  privacy_settings?: {
-    show_email: boolean
-    show_phone: boolean
-    show_address: boolean
-    show_bio: boolean
-  }
 }
 
 export interface Category {

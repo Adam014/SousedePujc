@@ -9,14 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Save, ArrowLeft, User } from "lucide-react"
+import { Save, ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
 import { db } from "@/lib/database"
 import AvatarUpload from "@/components/profile/avatar-upload"
-import PrivacySettings from "@/components/profile/privacy-settings"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { User as UserType } from "@/lib/types"
 
 export default function EditProfilePage() {
   const { user, refreshUser } = useAuth()
@@ -33,12 +30,6 @@ export default function EditProfilePage() {
   })
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [privacySettings, setPrivacySettings] = useState<UserType["privacy_settings"]>({
-    show_email: false,
-    show_phone: false,
-    show_address: false,
-    show_bio: true,
-  })
 
   useEffect(() => {
     if (!user) {
@@ -55,14 +46,6 @@ export default function EditProfilePage() {
     })
 
     setAvatarUrl(user.avatar_url || null)
-    setPrivacySettings(
-      user.privacy_settings || {
-        show_email: false,
-        show_phone: false,
-        show_address: false,
-        show_bio: true,
-      },
-    )
   }, [user, router])
 
   const handleInputChange = (field: string, value: string) => {
@@ -81,7 +64,6 @@ export default function EditProfilePage() {
         phone: formData.phone || undefined,
         address: formData.address || undefined,
         bio: formData.bio || undefined,
-        privacy_settings: privacySettings,
       })
 
       // Refresh uživatele v auth contextu
@@ -120,177 +102,106 @@ export default function EditProfilePage() {
         <h1 className="text-3xl font-bold">Upravit profil</h1>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="profile">
-            <User className="h-4 w-4 mr-2" />
-            Osobní údaje
-          </TabsTrigger>
-          <TabsTrigger value="privacy">
-            <User className="h-4 w-4 mr-2" />
-            Soukromí
-          </TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle>Osobní údaje</CardTitle>
+        </CardHeader>
 
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Osobní údaje</CardTitle>
-            </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
+            {success && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertDescription className="text-green-800">{success}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Avatar */}
+            <AvatarUpload user={user} onAvatarUpdate={handleAvatarUpdate} />
+
+            {/* Základní údaje */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Jméno a příjmení *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail *</Label>
+                <Input id="email" type="email" value={formData.email} disabled className="bg-gray-50" />
+                <p className="text-xs text-gray-500">E-mail nelze změnit</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefon</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                placeholder="+420 123 456 789"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="address">Adresa</Label>
+              <AddressAutocomplete
+                value={formData.address}
+                onChange={(value) => handleInputChange("address", value)}
+                placeholder="Vaše adresa..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bio">O mně</Label>
+              <Textarea
+                id="bio"
+                value={formData.bio}
+                onChange={(e) => handleInputChange("bio", e.target.value)}
+                placeholder="Napište něco o sobě..."
+                rows={4}
+              />
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Tipy pro lepší profil:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Přidejte si profilovou fotografii pro větší důvěryhodnost</li>
+                <li>• Vyplňte telefonní číslo pro snadnější komunikaci</li>
+                <li>• Popište se v sekci "O mně" - pomůže to při výběru</li>
+                <li>• Přesná adresa usnadní koordinaci předání předmětů</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-4">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
+                Zrušit
+              </Button>
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? (
+                  "Ukládání..."
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Uložit změny
+                  </>
                 )}
-
-                {success && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <AlertDescription className="text-green-800">{success}</AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Avatar */}
-                <AvatarUpload user={user} onAvatarUpdate={handleAvatarUpdate} />
-
-                {/* Základní údaje */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Jméno a příjmení *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail *</Label>
-                    <Input id="email" type="email" value={formData.email} disabled className="bg-gray-50" />
-                    <p className="text-xs text-gray-500">E-mail nelze změnit</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefon</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                    placeholder="+420 123 456 789"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Adresa</Label>
-                  <AddressAutocomplete
-                    value={formData.address}
-                    onChange={(value) => handleInputChange("address", value)}
-                    placeholder="Vaše adresa..."
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">O mně</Label>
-                  <Textarea
-                    id="bio"
-                    value={formData.bio}
-                    onChange={(e) => handleInputChange("bio", e.target.value)}
-                    placeholder="Napište něco o sobě..."
-                    rows={4}
-                  />
-                </div>
-
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Tipy pro lepší profil:</h4>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Přidejte si profilovou fotografii pro větší důvěryhodnost</li>
-                    <li>• Vyplňte telefonní číslo pro snadnější komunikaci</li>
-                    <li>• Popište se v sekci "O mně" - pomůže to při výběru</li>
-                    <li>• Přesná adresa usnadní koordinaci předání předmětů</li>
-                  </ul>
-                </div>
-
-                <div className="flex gap-4">
-                  <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
-                    Zrušit
-                  </Button>
-                  <Button type="submit" disabled={loading} className="flex-1">
-                    {loading ? (
-                      "Ukládání..."
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Uložit změny
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="privacy">
-          <PrivacySettings
-            user={user}
-            onChange={(settings) => {
-              setPrivacySettings(settings)
-            }}
-          />
-
-          <div className="mt-6 flex gap-4">
-            <Button variant="outline" onClick={() => router.back()} className="flex-1">
-              Zrušit
-            </Button>
-            <Button
-              onClick={async () => {
-                setLoading(true)
-                try {
-                  await db.updateUser(user.id, { privacy_settings: privacySettings })
-                  await refreshUser()
-                  setSuccess("Nastavení soukromí bylo úspěšně aktualizováno!")
-                  setTimeout(() => {
-                    router.push("/profile")
-                  }, 2000)
-                } catch (error) {
-                  console.error("Update privacy settings error:", error)
-                  setError("Došlo k chybě při aktualizaci nastavení soukromí")
-                } finally {
-                  setLoading(false)
-                }
-              }}
-              disabled={loading}
-              className="flex-1"
-            >
-              {loading ? (
-                "Ukládání..."
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Uložit nastavení
-                </>
-              )}
-            </Button>
-          </div>
-
-          {error && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="border-green-200 bg-green-50 mt-4">
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
-      </Tabs>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

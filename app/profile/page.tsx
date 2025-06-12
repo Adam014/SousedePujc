@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Star, Shield, Package, Calendar, MessageSquare, MapPin, Mail, Phone } from "lucide-react"
+import { Star, Shield, Package, Calendar, MessageSquare, MapPin } from "lucide-react"
 import type { Item, Booking, Review } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
@@ -112,14 +112,6 @@ export default function ProfilePage() {
     )
   }
 
-  // Získáme nastavení soukromí
-  const privacySettings = user.privacy_settings || {
-    show_email: false,
-    show_phone: false,
-    show_address: false,
-    show_bio: true,
-  }
-
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Profil header */}
@@ -141,38 +133,19 @@ export default function ProfilePage() {
                 </Badge>
               </div>
 
-              {/* Kontaktní informace podle nastavení soukromí */}
-              <div className="space-y-2 mb-3">
-                {privacySettings.show_email && (
-                  <p className="text-gray-600">
-                    <span className="inline-flex items-center">
-                      <Mail className="h-4 w-4 mr-1" />
-                      {user.email}
-                    </span>
-                  </p>
-                )}
+              <p className="text-gray-600 mb-3">{user.email}</p>
+              {user.address && (
+                <p className="text-gray-600 mb-2">
+                  <span className="inline-flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {user.address}
+                  </span>
+                </p>
+              )}
 
-                {user.phone && privacySettings.show_phone && (
-                  <p className="text-gray-600">
-                    <span className="inline-flex items-center">
-                      <Phone className="h-4 w-4 mr-1" />
-                      {user.phone}
-                    </span>
-                  </p>
-                )}
-
-                {user.address && privacySettings.show_address && (
-                  <p className="text-gray-600">
-                    <span className="inline-flex items-center">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {user.address}
-                    </span>
-                  </p>
-                )}
-              </div>
-
-              {user.bio && privacySettings.show_bio && (
+              {user.bio && (
                 <div className="text-gray-600 mb-3">
+                  <p className="font-medium text-sm text-gray-500 mb-1">O mně:</p>
                   <p>{user.bio}</p>
                 </div>
               )}

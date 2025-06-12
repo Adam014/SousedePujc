@@ -5,12 +5,11 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Camera, Trash, Loader2 } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { compressImage, validateImageFile } from "@/lib/image-utils"
+import { Camera, Loader2, Trash } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/database"
 import type { User } from "@/lib/types"
+import { useToast } from "@/components/ui/use-toast"
 
 interface AvatarUploadProps {
   user: User
@@ -18,44 +17,53 @@ interface AvatarUploadProps {
 }
 
 export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps) {
-  const [isUploading, setIsUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatar_url || null)
+  const [uploading, setUploading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatar_url)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validace souboru
-    const validation = validateImageFile(file)
-    if (!validation.valid) {
-      setError(validation.error)
-      return
-    }
-
-    setError(null)
-    setIsUploading(true)
-
+  const uploadAvatar = async (file: File) => {
     try {
-      // Komprese obrázku
-      const compressedFile = await compressImage(file)
-      if (!compressedFile) {
-        throw new Error("Nepodařilo se komprimovat obrázek")
+      setUploading(true)
+
+      // Kontrola typu souboru
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: "Neplatný formát souboru",
+          description: "Prosím nahrajte obrázek (JPG, PNG, GIF).",
+          variant: "destructive",
+        })
+        return
       }
 
-      // Vytvoření cesty pro soubor
+      // Kontrola velikosti souboru (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "Soubor je příliš velký",
+          description: "Maximální velikost souboru je 2MB.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Vytvoření unikátního názvu souboru
       const fileExt = file.name.split(".").pop()
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`
-      const filePath = `${fileName}`
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
 
       // Nahrání souboru do Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
+      const { error: uploadError, data } = await supabase.storage
         .from("avatars")
-        .upload(filePath, compressedFile, { upsert: true })
+        .upload(filePath, file, { upsert: true })
 
       if (uploadError) {
-        throw uploadError
+        console.error("Error uploading avatar:", uploadError)
+        toast({
+          title: "Chyba při nahrávání",
+          description: "Nepodařilo se nahrát profilovou fotku. Zkuste to prosím znovu.",
+          variant: "destructive",
+        })
+        return
       }
 
       // Získání veřejné URL
@@ -68,96 +76,110 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
       // Aktualizace stavu
       setAvatarUrl(publicUrl)
       onAvatarUpdate(publicUrl)
-    } catch (err) {
-      console.error("Error uploading avatar:", err)
-      setError("Došlo k chybě při nahrávání profilové fotky. Zkuste to prosím znovu.")
+
+      toast({
+        title: "Profilová fotka nahrána",
+        description: "Vaše profilová fotka byla úspěšně aktualizována.",
+      })
+    } catch (error) {
+      console.error("Error uploading avatar:", error)
+      toast({
+        title: "Chyba při nahrávání",
+        description: "Nepodařilo se nahrát profilovou fotku. Zkuste to prosím znovu.",
+        variant: "destructive",
+      })
     } finally {
-      setIsUploading(false)
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+      setUploading(false)
     }
   }
 
-  const handleRemoveAvatar = async () => {
-    if (!avatarUrl) return
-    if (!confirm("Opravdu chcete odstranit profilovou fotku?")) return
-
-    setIsUploading(true)
-    setError(null)
-
+  const removeAvatar = async () => {
     try {
+      setUploading(true)
+
+      // Pokud nemá avatar, není co odstraňovat
+      if (!avatarUrl) return
+
+      // Extrahování názvu souboru z URL
+      const fileName = avatarUrl.split("/").pop()
+      if (fileName) {
+        // Odstranění souboru ze Storage
+        const { error } = await supabase.storage.from("avatars").remove([`avatars/${fileName}`])
+        if (error) {
+          console.error("Error removing avatar from storage:", error)
+        }
+      }
+
       // Aktualizace uživatele v databázi
       await db.updateUser(user.id, { avatar_url: null })
 
       // Aktualizace stavu
       setAvatarUrl(null)
       onAvatarUpdate(null)
-    } catch (err) {
-      console.error("Error removing avatar:", err)
-      setError("Došlo k chybě při odstraňování profilové fotky. Zkuste to prosím znovu.")
+
+      toast({
+        title: "Profilová fotka odstraněna",
+        description: "Vaše profilová fotka byla úspěšně odstraněna.",
+      })
+    } catch (error) {
+      console.error("Error removing avatar:", error)
+      toast({
+        title: "Chyba při odstraňování",
+        description: "Nepodařilo se odstranit profilovou fotku. Zkuste to prosím znovu.",
+        variant: "destructive",
+      })
     } finally {
-      setIsUploading(false)
+      setUploading(false)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      uploadAvatar(e.target.files[0])
     }
   }
 
   return (
-    <div className="flex flex-col items-center space-y-4">
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="relative">
-        <Avatar className="h-24 w-24">
-          <AvatarImage src={avatarUrl || "/placeholder.svg"} />
-          <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
-        </Avatar>
-        {isUploading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
-            <Loader2 className="h-8 w-8 text-white animate-spin" />
-          </div>
-        )}
-      </div>
-
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-        >
-          <Camera className="h-4 w-4 mr-2" />
-          {avatarUrl ? "Změnit fotku" : "Nahrát fotku"}
-        </Button>
-
-        {avatarUrl && (
+    <div className="flex items-center space-x-6">
+      <Avatar className="h-24 w-24">
+        <AvatarImage src={avatarUrl || "/placeholder-user.jpg"} />
+        <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="space-y-2">
+        <div className="flex space-x-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleRemoveAvatar}
-            disabled={isUploading}
-            className="text-red-500 hover:text-red-700"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
           >
-            <Trash className="h-4 w-4 mr-2" />
-            Odstranit
+            {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Camera className="h-4 w-4 mr-2" />}
+            Změnit fotografii
           </Button>
-        )}
-
+          {avatarUrl && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={removeAvatar}
+              disabled={uploading}
+              className="text-red-500 hover:text-red-700"
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <p className="text-sm text-gray-500">JPG, PNG nebo GIF (max. 2MB)</p>
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/jpeg,image/png,image/gif,image/webp"
+          accept="image/*"
           className="hidden"
+          disabled={uploading}
         />
       </div>
-
-      <p className="text-sm text-gray-500">JPG, PNG nebo GIF (max. 2MB)</p>
     </div>
   )
 }
