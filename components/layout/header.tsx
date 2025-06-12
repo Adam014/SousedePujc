@@ -64,10 +64,6 @@ export default function Header() {
                       <div className="flex flex-col space-y-1 leading-none">
                         <p className="font-medium">{user.name}</p>
                         <p className="w-[200px] truncate text-sm text-muted-foreground">{user.email}</p>
-                        <div className="flex items-center space-x-1">
-                          <span className="text-sm text-muted-foreground">Hodnocení:</span>
-                          <span className="text-sm font-medium">{user.reputation_score.toFixed(1)}</span>
-                        </div>
                       </div>
                     </div>
                     <DropdownMenuSeparator />
