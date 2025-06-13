@@ -5,14 +5,13 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
-import type { ChatRoom as ChatRoomType, ChatMessage, User } from "@/lib/types"
+import type { ChatRoom as ChatRoomType, User } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ArrowLeft, MoreVertical, Edit, Trash2, Check, X } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
-import type { RealtimeChannel } from "@supabase/supabase-js"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
@@ -26,9 +25,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import MessageInput from "./message-input"
 import MessageAttachment from "./message-attachment"
+import MessageReactions from "./message-reactions"
+import TypingIndicatorComponent from "./typing-indicator"
 import ContentWarning from "./content-warning"
 import { Input } from "@/components/ui/input"
-import { supabase } from "@/lib/supabase"
+import { useRealtimeChat } from "@/hooks/use-realtime-chat"
 
 interface ChatRoomProps {
   roomId: string
@@ -40,9 +41,8 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const { user } = useAuth()
   const router = useRouter()
   const [room, setRoom] = useState<ChatRoomType | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [roomLoading, setRoomLoading] = useState(true)
   const [newMessage, setNewMessage] = useState("")
-  const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editedMessageText, setEditedMessageText] = useState("")
@@ -51,8 +51,20 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const [showContentWarning, setShowContentWarning] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const subscriptionRef = useRef<RealtimeChannel | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Použijeme nový realtime hook
+  const {
+    messages,
+    typingUsers,
+    loading: messagesLoading,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    sendTypingIndicator,
+    stopTypingIndicator,
+  } = useRealtimeChat(roomId, user?.id || "")
 
   // Funkce pro získání druhého uživatele v konverzaci
   const getOtherUser = (): User | null => {
@@ -60,22 +72,19 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     return user.id === room.owner_id ? room.borrower : room.owner
   }
 
-  // Načtení dat místnosti a zpráv
+  // Načtení dat místnosti
   useEffect(() => {
     const loadRoomData = async () => {
       if (!user) return
 
       try {
-        setLoading(true)
+        setRoomLoading(true)
         const roomData = await db.getChatRoomById(roomId)
         if (!roomData) {
           if (!isPopup) router.push("/messages")
           return
         }
         setRoom(roomData)
-
-        const messagesData = await db.getChatMessagesByRoom(roomId)
-        setMessages(messagesData)
 
         // Označit zprávy jako přečtené
         await db.markChatMessagesAsRead(roomId, user.id)
@@ -85,93 +94,12 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       } catch (error) {
         console.error("Error loading chat room data:", error)
       } finally {
-        setLoading(false)
+        setRoomLoading(false)
       }
     }
 
     loadRoomData()
-
-    // Nastavíme interval pro pravidelnou kontrolu nových zpráv a označení jako přečtené
-    const interval = setInterval(async () => {
-      if (user) {
-        await db.markChatMessagesAsRead(roomId, user.id)
-      }
-    }, 5000)
-
-    return () => clearInterval(interval)
   }, [roomId, user, router, isPopup])
-
-  // Vylepšené nastavení realtime subscription pro zprávy
-  useEffect(() => {
-    if (!user || !roomId) return
-
-    // Přímá Supabase realtime subscription pro lepší realtime funkcionalitu
-    const channel = supabase
-      .channel(`chat_room:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        async (payload) => {
-          console.log("Realtime event received:", payload)
-
-          const { eventType, new: newRecord, old: oldRecord } = payload
-
-          if (eventType === "INSERT") {
-            // Nová zpráva
-            const newMessage = newRecord as ChatMessage
-
-            // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
-            if (newMessage.sender_id !== user.id) {
-              await db.markChatMessagesAsRead(roomId, user.id)
-            }
-
-            // Získáme kompletní data odesílatele
-            const sender = await db.getUserById(newMessage.sender_id)
-
-            // Přidáme novou zprávu do seznamu
-            setMessages((prev) => {
-              // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
-              const exists = prev.some((msg) => msg.id === newMessage.id)
-              if (exists) return prev
-              return [...prev, { ...newMessage, sender }]
-            })
-          } else if (eventType === "UPDATE") {
-            // Aktualizace zprávy
-            const updatedMessage = newRecord as ChatMessage
-
-            // Získáme kompletní data odesílatele
-            const sender = updatedMessage.sender || (await db.getUserById(updatedMessage.sender_id))
-
-            // Aktualizujeme zprávu v seznamu
-            setMessages((prev) =>
-              prev.map((msg) => (msg.id === updatedMessage.id ? { ...updatedMessage, sender } : msg)),
-            )
-          } else if (eventType === "DELETE") {
-            // Smazání zprávy
-            const deletedMessageId = oldRecord.id
-
-            // Odstraníme zprávu ze seznamu
-            setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
-          }
-        },
-      )
-      .subscribe()
-
-    // Uložíme referenci na kanál pro pozdější odhlášení
-    subscriptionRef.current = channel
-
-    return () => {
-      // Odhlásíme se při unmount komponenty
-      if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current)
-      }
-    }
-  }, [roomId, user])
 
   // Automatické scrollování na konec zpráv
   useEffect(() => {
@@ -185,6 +113,27 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     }
   }, [editingMessageId])
 
+  // Typing indikátor při psaní
+  const handleInputChange = (value: string) => {
+    setNewMessage(value)
+
+    if (user && value.trim()) {
+      sendTypingIndicator(user.name)
+
+      // Resetujeme timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+
+      // Zastavíme typing po 1 sekundě nečinnosti
+      typingTimeoutRef.current = setTimeout(() => {
+        stopTypingIndicator()
+      }, 1000)
+    } else {
+      stopTypingIndicator()
+    }
+  }
+
   // Odeslání nové zprávy
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,42 +141,18 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
     try {
       setSending(true)
+      stopTypingIndicator()
 
-      // Optimistické UI aktualizace - přidáme zprávu okamžitě
-      const optimisticId = `temp-${Date.now()}`
-      const optimisticMessage: ChatMessage = {
-        id: optimisticId,
-        room_id: roomId,
-        sender_id: user.id,
-        message: newMessage.trim(),
-        is_read: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        sender: user,
-        is_edited: false,
-      }
-
-      setMessages((prev) => [...prev, optimisticMessage])
-      setNewMessage("")
-
-      // Skutečné odeslání zprávy
-      const result = await db.sendChatMessage({
-        room_id: roomId,
-        sender_id: user.id,
-        message: newMessage.trim(),
-      })
+      const result = await sendMessage(newMessage.trim())
 
       // Zobrazit varování pokud byl obsah filtrován
       if (result.wasFiltered) {
         setShowContentWarning(true)
       }
 
-      // Nahradíme optimistickou zprávu skutečnou
-      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? result.message : msg)))
+      setNewMessage("")
     } catch (error) {
       console.error("Error sending message:", error)
-      // Odstraníme optimistickou zprávu v případě chyby
-      setMessages((prev) => prev.filter((msg) => !msg.id.toString().startsWith("temp-")))
     } finally {
       setSending(false)
     }
@@ -240,48 +165,22 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     try {
       setSending(true)
 
-      // Optimistické UI aktualizace
-      const optimisticId = `temp-${Date.now()}`
-      const optimisticMessage: ChatMessage = {
-        id: optimisticId,
-        room_id: roomId,
-        sender_id: user.id,
-        message: fileName,
-        attachment_url: fileUrl,
-        attachment_name: fileName,
-        attachment_type: fileType,
-        is_read: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        sender: user,
-        is_edited: false,
-      }
-
-      setMessages((prev) => [...prev, optimisticMessage])
-
-      // Skutečné odeslání zprávy s přílohou
-      const result = await db.sendChatMessage({
-        room_id: roomId,
-        sender_id: user.id,
-        message: fileName,
+      const result = await sendMessage(fileName, {
         attachment_url: fileUrl,
         attachment_name: fileName,
         attachment_type: fileType,
       })
 
-      // Nahradíme optimistickou zprávu skutečnou
-      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? result.message : msg)))
+      console.log("File sent:", result)
     } catch (error) {
       console.error("Error sending file:", error)
-      // Odstraníme optimistickou zprávu v případě chyby
-      setMessages((prev) => prev.filter((msg) => !msg.id.toString().startsWith("temp-")))
     } finally {
       setSending(false)
     }
   }
 
   // Zahájení editace zprávy
-  const startEditMessage = (message: ChatMessage) => {
+  const startEditMessage = (message: any) => {
     setEditingMessageId(message.id)
     setEditedMessageText(message.message)
   }
@@ -291,35 +190,14 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     if (!editingMessageId || !editedMessageText.trim()) return
 
     try {
-      // Optimistická aktualizace UI
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === editingMessageId
-            ? {
-                ...msg,
-                message: editedMessageText,
-                is_edited: true,
-                updated_at: new Date().toISOString(),
-              }
-            : msg,
-        ),
-      )
-
-      // Skutečná aktualizace v databázi
-      const result = await db.updateChatMessage(editingMessageId, editedMessageText)
+      const result = await editMessage(editingMessageId, editedMessageText)
 
       // Zobrazit varování pokud byl obsah filtrován
       if (result.wasFiltered) {
         setShowContentWarning(true)
       }
-
-      // Aktualizace zprávy v seznamu s daty z databáze
-      setMessages((prev) => prev.map((msg) => (msg.id === editingMessageId ? result.message : msg)))
     } catch (error) {
       console.error("Error updating message:", error)
-      // V případě chyby načteme zprávy znovu
-      const messagesData = await db.getChatMessagesByRoom(roomId)
-      setMessages(messagesData)
     } finally {
       setEditingMessageId(null)
       setEditedMessageText("")
@@ -339,27 +217,42 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   }
 
   // Smazání zprávy
-  const deleteMessage = async () => {
+  const handleDeleteMessage = async () => {
     if (!messageToDelete) return
 
     try {
-      // Optimistická aktualizace UI - odstraníme zprávu ze seznamu
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageToDelete))
-
-      // Skutečné smazání v databázi
-      await db.deleteChatMessage(messageToDelete)
+      await deleteMessage(messageToDelete)
     } catch (error) {
       console.error("Error deleting message:", error)
-      // V případě chyby načteme zprávy znovu
-      const messagesData = await db.getChatMessagesByRoom(roomId)
-      setMessages(messagesData)
     } finally {
       setMessageToDelete(null)
       setDeleteDialogOpen(false)
     }
   }
 
-  if (loading) {
+  // Přidání reakce na zprávu
+  const handleAddReaction = async (messageId: string, emoji: string) => {
+    if (!user) return
+
+    try {
+      await db.addMessageReaction(messageId, user.id, emoji)
+    } catch (error) {
+      console.error("Error adding reaction:", error)
+    }
+  }
+
+  // Odstranění reakce ze zprávy
+  const handleRemoveReaction = async (messageId: string, emoji: string) => {
+    if (!user) return
+
+    try {
+      await db.removeMessageReaction(messageId, user.id, emoji)
+    } catch (error) {
+      console.error("Error removing reaction:", error)
+    }
+  }
+
+  if (roomLoading || messagesLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -533,6 +426,15 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                         )}
                       </div>
 
+                      {/* Reakce na zprávy */}
+                      <MessageReactions
+                        messageId={message.id}
+                        reactions={message.reactions || []}
+                        currentUserId={user?.id || ""}
+                        onAddReaction={handleAddReaction}
+                        onRemoveReaction={handleRemoveReaction}
+                      />
+
                       {isLastInGroup && (
                         <div className={`flex items-center mt-1 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
                           <p className="text-xs text-gray-500">
@@ -546,6 +448,10 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                 </div>
               )
             })}
+
+            {/* Typing indikátor */}
+            <TypingIndicatorComponent typingUsers={typingUsers} />
+
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -553,7 +459,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
       <MessageInput
         value={newMessage}
-        onChange={setNewMessage}
+        onChange={handleInputChange}
         onSubmit={handleSendMessage}
         onFileUpload={handleFileUpload}
         disabled={sending}
@@ -568,7 +474,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Zrušit</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteMessage}>Smazat</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteMessage}>Smazat</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

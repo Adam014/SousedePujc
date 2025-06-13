@@ -110,7 +110,24 @@ export interface ChatMessage {
   attachment_url?: string
   attachment_name?: string
   attachment_type?: string
+  reactions?: MessageReaction[]
   created_at: string
   updated_at?: string
   sender?: User
+}
+
+export interface MessageReaction {
+  id: string
+  message_id: string
+  user_id: string
+  emoji: string
+  created_at: string
+  user?: User
+}
+
+export interface TypingIndicator {
+  room_id: string
+  user_id: string
+  user_name: string
+  timestamp: number
 }

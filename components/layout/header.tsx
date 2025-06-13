@@ -44,12 +44,9 @@ export default function Header() {
     // Načteme počet nepřečtených zpráv při prvním renderu
     loadUnreadMessages()
 
-    // Nastavíme interval pro pravidelnou kontrolu nových zpráv
-    const interval = setInterval(loadUnreadMessages, 10000) // každých 10 sekund
-
-    // Nastavíme realtime subscription pro chat_messages
+    // Nastavíme realtime subscription pro všechny chat_messages
     const channel = supabase
-      .channel("unread_messages_counter")
+      .channel("header_unread_messages")
       .on(
         "postgres_changes",
         {
@@ -57,7 +54,7 @@ export default function Header() {
           schema: "public",
           table: "chat_messages",
         },
-        (payload) => {
+        () => {
           // Při jakékoliv změně v chat_messages aktualizujeme počet nepřečtených zpráv
           loadUnreadMessages()
         },
@@ -65,7 +62,6 @@ export default function Header() {
       .subscribe()
 
     return () => {
-      clearInterval(interval)
       supabase.removeChannel(channel)
     }
   }, [user])
@@ -76,18 +72,19 @@ export default function Header() {
       // Extrahujeme ID místnosti z URL
       const roomId = pathname?.split("/").pop()
       if (roomId) {
-        // Označíme zprávy jako přečtené
-        db.markChatMessagesAsRead(roomId, user.id)
-          .then(() => {
+        // Označíme zprávy jako přečtené s malým zpožděním
+        const timer = setTimeout(async () => {
+          try {
+            await db.markChatMessagesAsRead(roomId, user.id)
             // Aktualizujeme počet nepřečtených zpráv
-            return db.getUnreadMessageCount(user.id)
-          })
-          .then((count) => {
+            const count = await db.getUnreadMessageCount(user.id)
             setUnreadMessages(count)
-          })
-          .catch((error) => {
+          } catch (error) {
             console.error("Error marking messages as read:", error)
-          })
+          }
+        }, 1000)
+
+        return () => clearTimeout(timer)
       }
     }
   }, [user, isInChatRoom, pathname])
@@ -126,7 +123,7 @@ export default function Header() {
                   <Link href="/messages">
                     <MessageSquare className="h-5 w-5" />
                     {unreadMessages > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
                         {unreadMessages > 9 ? "9+" : unreadMessages}
                       </span>
                     )}

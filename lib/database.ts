@@ -1,5 +1,15 @@
 import { supabase } from "./supabase"
-import type { User, Item, Category, Booking, Review, Notification, ChatRoom, ChatMessage } from "./types"
+import type {
+  User,
+  Item,
+  Category,
+  Booking,
+  Review,
+  Notification,
+  ChatRoom,
+  ChatMessage,
+  MessageReaction,
+} from "./types"
 // Přidání importu pro content filter
 import { filterInappropriateContent, logInappropriateContent, type ContentFilterResult } from "./content-filter"
 
@@ -626,7 +636,11 @@ export const db = {
       .from("chat_messages")
       .select(`
         *,
-        sender:users(*)
+        sender:users(*),
+        reactions:message_reactions(
+          *,
+          user:users(*)
+        )
       `)
       .eq("room_id", roomId)
       .order("created_at", { ascending: true })
@@ -657,7 +671,11 @@ export const db = {
       .insert([filteredMessageData])
       .select(`
         *,
-        sender:users(*)
+        sender:users(*),
+        reactions:message_reactions(
+          *,
+          user:users(*)
+        )
       `)
       .single()
 
@@ -727,7 +745,11 @@ export const db = {
         .eq("id", messageId)
         .select(`
           *,
-          sender:users(*)
+          sender:users(*),
+          reactions:message_reactions(
+            *,
+            user:users(*)
+          )
         `)
         .single()
 
@@ -819,25 +841,6 @@ export const db = {
     return count || 0
   },
 
-  // Vylepšená funkce pro naslouchání změnám zpráv v reálném čase
-  subscribeToMessages(roomId: string, callback: (payload: any) => void) {
-    return supabase
-      .channel(`chat_messages:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*", // Nasloucháme všem událostem (INSERT, UPDATE, DELETE)
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          callback(payload)
-        },
-      )
-      .subscribe()
-  },
-
   // Přidání funkce pro aktualizaci last_seen
   async updateUserLastSeen(userId: string): Promise<void> {
     const { error } = await supabase.from("users").update({ last_seen: new Date().toISOString() }).eq("id", userId)
@@ -845,5 +848,64 @@ export const db = {
     if (error) {
       console.error("Error updating user last seen:", error)
     }
+  },
+
+  // Funkce pro reakce na zprávy
+  async addMessageReaction(messageId: string, userId: string, emoji: string): Promise<MessageReaction> {
+    const { data, error } = await supabase
+      .from("message_reactions")
+      .insert([
+        {
+          message_id: messageId,
+          user_id: userId,
+          emoji: emoji,
+        },
+      ])
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .single()
+
+    if (error) {
+      console.error("Error adding message reaction:", error)
+      throw error
+    }
+
+    return data
+  },
+
+  async removeMessageReaction(messageId: string, userId: string, emoji: string): Promise<boolean> {
+    const { error } = await supabase
+      .from("message_reactions")
+      .delete()
+      .eq("message_id", messageId)
+      .eq("user_id", userId)
+      .eq("emoji", emoji)
+
+    if (error) {
+      console.error("Error removing message reaction:", error)
+      throw error
+    }
+
+    return true
+  },
+
+  async getMessageReactions(messageId: string): Promise<MessageReaction[]> {
+    const { data, error } = await supabase
+      .from("message_reactions")
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .eq("message_id", messageId)
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      console.error("Error fetching message reactions:", error)
+      throw error
+    }
+
+    return data || []
   },
 }
