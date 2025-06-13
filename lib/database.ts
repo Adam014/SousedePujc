@@ -384,6 +384,17 @@ export const db = {
     return data
   },
 
+  async deleteBooking(id: string): Promise<boolean> {
+    const { error } = await supabase.from("bookings").delete().eq("id", id)
+
+    if (error) {
+      console.error("Error deleting booking:", error)
+      throw error
+    }
+
+    return true
+  },
+
   // Reviews
   async getReviewsByUser(userId: string): Promise<Review[]> {
     const { data, error } = await supabase

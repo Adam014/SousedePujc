@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/lib/auth"
@@ -13,9 +13,13 @@ export const metadata: Metadata = {
     "Moderní platforma pro půjčování věcí mezi sousedy. Půjčte si nářadí, sportovní vybavení a další předměty od lidí ve vaší komunitě.",
   keywords: "půjčování, komunita, sousedé, nářadí, sportovní vybavení, sdílená ekonomika, sharing economy",
   authors: [{ name: "SousedePůjč Team" }],
-  viewport: "width=device-width, initial-scale=1",
   robots: "index, follow",
   generator: "v0.dev",
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 }
 
 export default function RootLayout({

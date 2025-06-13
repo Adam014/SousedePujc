@@ -7,10 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin, HelpCircle } from "lucide-react"
+import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin, HelpCircle, Trash2, AlertTriangle } from "lucide-react"
 import type { Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import RatingDisplay from "@/components/ui/rating-display"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface BookingRequestCardProps {
   booking: Booking
@@ -36,6 +45,8 @@ export default function BookingRequestCard({ booking }: BookingRequestCardProps)
   const [showReasonForm, setShowReasonForm] = useState(false)
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const handleConfirmBooking = async () => {
     setLoading(true)
@@ -103,7 +114,24 @@ export default function BookingRequestCard({ booking }: BookingRequestCardProps)
     }
   }
 
+  const handleDeleteBooking = async () => {
+    if (booking.status !== "cancelled") return
+
+    try {
+      setDeleting(true)
+      await db.deleteBooking(booking.id)
+
+      // Reload the page to show the updated list
+      window.location.reload()
+    } catch (error) {
+      console.error("Error deleting booking:", error)
+      setDeleting(false)
+      setDeleteDialogOpen(false)
+    }
+  }
+
   const isPending = booking.status === "pending"
+  const isCancelled = booking.status === "cancelled"
 
   return (
     <Card
@@ -261,6 +289,37 @@ export default function BookingRequestCard({ booking }: BookingRequestCardProps)
                 <strong>Důvod zamítnutí:</strong> {booking.message}
               </p>
             </div>
+          )}
+
+          {/* Tlačítko pro smazání zamítnuté rezervace */}
+          {isCancelled && (
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full border-red-200 text-red-600 hover:bg-red-50">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Smazat zamítnutou rezervaci
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                    Smazat rezervaci
+                  </DialogTitle>
+                </DialogHeader>
+                <DialogDescription>
+                  Opravdu chcete smazat tuto zamítnutou rezervaci? Tato akce je nevratná.
+                </DialogDescription>
+                <DialogFooter className="flex space-x-2 justify-end">
+                  <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                    Zrušit
+                  </Button>
+                  <Button variant="destructive" onClick={handleDeleteBooking} disabled={deleting}>
+                    {deleting ? "Mazání..." : "Smazat rezervaci"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </CardContent>
