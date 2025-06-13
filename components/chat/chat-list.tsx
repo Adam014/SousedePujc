@@ -10,8 +10,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import { MessageSquare } from "lucide-react"
-// Přidat import pro ActivityIndicator
-import ActivityIndicator from "@/components/ui/activity-indicator"
 
 export default function ChatList() {
   const { user } = useAuth()
@@ -82,24 +80,15 @@ export default function ChatList() {
             onClick={() => handleRoomClick(room.id)}
           >
             <CardContent className="p-4">
-              {/* V části kde se renderuje seznam chatů, aktualizovat zobrazení uživatele: */}
               <div className="flex items-center">
-                <div className="relative">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
-                    <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
-                  </Avatar>
-                  <div className="absolute -bottom-1 -right-1">
-                    <ActivityIndicator lastSeen={otherUser?.last_seen} size="sm" />
-                  </div>
-                </div>
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
+                  <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
                 <div className="ml-4 flex-1">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between">
                     <h3 className="text-sm font-medium">{otherUser?.name || "Neznámý uživatel"}</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{lastMessageTime}</span>
-                      <ActivityIndicator lastSeen={otherUser?.last_seen} size="sm" />
-                    </div>
+                    <span className="text-xs text-gray-500">{lastMessageTime}</span>
                   </div>
                   <div className="flex justify-between mt-1">
                     <p className="text-xs text-gray-500 truncate max-w-[200px]">

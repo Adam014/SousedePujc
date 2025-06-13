@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
-import { useSoundNotifications } from "@/hooks/use-sound-notifications"
 import type { ChatRoom as ChatRoomType, ChatMessage, User } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -26,10 +25,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import MessageInput from "./message-input"
+import MessageAttachment from "./message-attachment"
 import ContentWarning from "./content-warning"
-import ActivityIndicator from "@/components/ui/activity-indicator"
 import { Input } from "@/components/ui/input"
-import { useRealtimeChat } from "@/hooks/use-realtime-chat"
 
 interface ChatRoomProps {
   roomId: string
@@ -40,8 +38,6 @@ interface ChatRoomProps {
 export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomProps) {
   const { user } = useAuth()
   const router = useRouter()
-  const { playMessageSound } = useSoundNotifications()
-
   const [room, setRoom] = useState<ChatRoomType | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -95,31 +91,55 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     loadRoomData()
   }, [roomId, user, router, isPopup])
 
-  const { isConnected } = useRealtimeChat({
-    roomId,
-    userId: user?.id || "",
-    onNewMessage: async (newMessage) => {
-      // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou a přehrajeme zvuk
-      if (newMessage.sender_id !== user?.id) {
-        await db.markChatMessagesAsRead(roomId, user.id)
-        playMessageSound()
-      }
+  // Vylepšené nastavení realtime subscription pro zprávy
+  useEffect(() => {
+    if (!user || !roomId) return
 
-      // Přidáme novou zprávu do seznamu
-      setMessages((prev) => {
-        // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
-        const exists = prev.some((msg) => msg.id === newMessage.id)
-        if (exists) return prev
-        return [...prev, newMessage]
-      })
-    },
-    onMessageUpdate: (updatedMessage) => {
-      setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg)))
-    },
-    onMessageDelete: (messageId) => {
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId))
-    },
-  })
+    const subscription = db.subscribeToMessages(roomId, async (payload) => {
+      const { eventType, new: newRecord, old: oldRecord } = payload
+
+      if (eventType === "INSERT") {
+        // Nová zpráva
+        const newMessage = newRecord as ChatMessage
+
+        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
+        if (newMessage.sender_id !== user.id) {
+          await db.markChatMessagesAsRead(roomId, user.id)
+        }
+
+        // Získáme kompletní data odesílatele
+        const sender = await db.getUserById(newMessage.sender_id)
+
+        // Přidáme novou zprávu do seznamu
+        setMessages((prev) => {
+          // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
+          const exists = prev.some((msg) => msg.id === newMessage.id)
+          if (exists) return prev
+          return [...prev, { ...newMessage, sender }]
+        })
+      } else if (eventType === "UPDATE") {
+        // Aktualizace zprávy
+        const updatedMessage = newRecord as ChatMessage
+
+        // Aktualizujeme zprávu v seznamu
+        setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)))
+      } else if (eventType === "DELETE") {
+        // Smazání zprávy
+        const deletedMessageId = oldRecord.id
+
+        // Odstraníme zprávu ze seznamu
+        setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
+      }
+    })
+
+    subscriptionRef.current = subscription
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe()
+      }
+    }
+  }, [roomId, user])
 
   // Automatické scrollování na konec zpráv
   useEffect(() => {
@@ -174,6 +194,53 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? result.message : msg)))
     } catch (error) {
       console.error("Error sending message:", error)
+      // Odstraníme optimistickou zprávu v případě chyby
+      setMessages((prev) => prev.filter((msg) => !msg.id.toString().startsWith("temp-")))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Odeslání zprávy s přílohou
+  const handleFileUpload = async (fileUrl: string, fileName: string, fileType: string) => {
+    if (!user || !room) return
+
+    try {
+      setSending(true)
+
+      // Optimistické UI aktualizace
+      const optimisticId = `temp-${Date.now()}`
+      const optimisticMessage: ChatMessage = {
+        id: optimisticId,
+        room_id: roomId,
+        sender_id: user.id,
+        message: fileName,
+        attachment_url: fileUrl,
+        attachment_name: fileName,
+        attachment_type: fileType,
+        is_read: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        sender: user,
+        is_edited: false,
+      }
+
+      setMessages((prev) => [...prev, optimisticMessage])
+
+      // Skutečné odeslání zprávy s přílohou
+      const result = await db.sendChatMessage({
+        room_id: roomId,
+        sender_id: user.id,
+        message: fileName,
+        attachment_url: fileUrl,
+        attachment_name: fileName,
+        attachment_type: fileType,
+      })
+
+      // Nahradíme optimistickou zprávu skutečnou
+      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? result.message : msg)))
+    } catch (error) {
+      console.error("Error sending file:", error)
       // Odstraníme optimistickou zprávu v případě chyby
       setMessages((prev) => prev.filter((msg) => !msg.id.toString().startsWith("temp-")))
     } finally {
@@ -305,30 +372,16 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
             </Button>
           )}
 
-          <div className="relative">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
-              <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-1 -right-1">
-              <ActivityIndicator lastSeen={otherUser?.last_seen} size="sm" />
-            </div>
-          </div>
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
+            <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+          </Avatar>
 
           <div className="ml-3 flex-1">
-            <CardTitle className="text-base font-semibold flex items-center">
-              {otherUser?.name || "Neznámý uživatel"}
-              <div
-                className={`ml-2 w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
-                title={isConnected ? "Připojeno" : "Odpojeno"}
-              />
-            </CardTitle>
+            <CardTitle className="text-base font-semibold">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
             <CardDescription className="text-sm truncate">
               {room.item?.title || "Předmět není k dispozici"}
             </CardDescription>
-            <div className="mt-1">
-              <ActivityIndicator lastSeen={otherUser?.last_seen} showText size="sm" />
-            </div>
           </div>
 
           {isPopup && onClose && (
@@ -409,6 +462,16 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                         ) : (
                           <>
                             <p className="text-sm leading-relaxed">{message.message}</p>
+
+                            {/* Zobrazení příloh */}
+                            {message.attachment_url && message.attachment_name && message.attachment_type && (
+                              <MessageAttachment
+                                fileUrl={message.attachment_url}
+                                fileName={message.attachment_name}
+                                fileType={message.attachment_type}
+                              />
+                            )}
+
                             {isCurrentUser && (
                               <div className="flex items-center justify-end mt-1">
                                 <DropdownMenu>
@@ -460,6 +523,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
         value={newMessage}
         onChange={setNewMessage}
         onSubmit={handleSendMessage}
+        onFileUpload={handleFileUpload}
         disabled={sending}
         placeholder="Zadejte zprávu..."
       />

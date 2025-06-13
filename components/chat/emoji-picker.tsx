@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Smile } from "lucide-react"
 
+interface EmojiPickerProps {
+  onEmojiSelect: (emoji: string) => void
+}
+
 const emojiCategories = {
   smileys: [
     "😀",
@@ -86,68 +90,34 @@ const emojiCategories = {
     "💝",
     "💟",
   ],
-  animals: [
-    "🐶",
-    "🐱",
-    "🐭",
-    "🐹",
-    "🐰",
-    "🦊",
-    "🐻",
-    "🐼",
-    "🐨",
-    "🐯",
-    "🦁",
-    "🐮",
-    "🐷",
-    "🐸",
-    "🐵",
-    "🙈",
-    "🙉",
-    "🙊",
-    "🐒",
-    "🐔",
-    "🐧",
-    "🐦",
-    "🐤",
-    "🐣",
-    "🐥",
+  objects: [
+    "📱",
+    "💻",
+    "⌨️",
+    "🖥️",
+    "🖨️",
+    "🖱️",
+    "🖲️",
+    "💽",
+    "💾",
+    "💿",
+    "📀",
+    "📼",
+    "📷",
+    "📸",
+    "📹",
+    "🎥",
+    "📽️",
+    "🎞️",
+    "📞",
+    "☎️",
+    "📟",
+    "📠",
   ],
-  food: [
-    "🍎",
-    "🍊",
-    "🍋",
-    "🍌",
-    "🍉",
-    "🍇",
-    "🍓",
-    "🍈",
-    "🍒",
-    "🍑",
-    "🥭",
-    "🍍",
-    "🥥",
-    "🥝",
-    "🍅",
-    "🍆",
-    "🥑",
-    "🥦",
-    "🥬",
-    "🥒",
-    "🌶️",
-    "🌽",
-    "🥕",
-    "🧄",
-    "🧅",
-  ],
-}
-
-interface EmojiPickerProps {
-  onEmojiSelect: (emoji: string) => void
 }
 
 export default function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
-  const [selectedCategory, setSelectedCategory] = useState<keyof typeof emojiCategories>("smileys")
+  const [activeCategory, setActiveCategory] = useState<keyof typeof emojiCategories>("smileys")
 
   return (
     <Popover>
@@ -162,29 +132,28 @@ export default function EmojiPicker({ onEmojiSelect }: EmojiPickerProps) {
             {Object.keys(emojiCategories).map((category) => (
               <Button
                 key={category}
-                variant={selectedCategory === category ? "default" : "ghost"}
+                variant={activeCategory === category ? "default" : "ghost"}
                 size="sm"
+                onClick={() => setActiveCategory(category as keyof typeof emojiCategories)}
                 className="flex-1 rounded-none"
-                onClick={() => setSelectedCategory(category as keyof typeof emojiCategories)}
               >
                 {category === "smileys" && "😊"}
                 {category === "gestures" && "👍"}
                 {category === "hearts" && "❤️"}
-                {category === "animals" && "🐶"}
-                {category === "food" && "🍎"}
+                {category === "objects" && "📱"}
               </Button>
             ))}
           </div>
         </div>
         <div className="p-2 h-48 overflow-y-auto">
           <div className="grid grid-cols-8 gap-1">
-            {emojiCategories[selectedCategory].map((emoji, index) => (
+            {emojiCategories[activeCategory].map((emoji, index) => (
               <Button
                 key={index}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-lg hover:bg-gray-100"
                 onClick={() => onEmojiSelect(emoji)}
+                className="h-8 w-8 p-0 text-lg hover:bg-gray-100"
               >
                 {emoji}
               </Button>

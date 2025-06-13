@@ -107,6 +107,9 @@ export interface ChatMessage {
   message: string
   is_read: boolean
   is_edited?: boolean
+  attachment_url?: string
+  attachment_name?: string
+  attachment_type?: string
   created_at: string
   updated_at?: string
   sender?: User
