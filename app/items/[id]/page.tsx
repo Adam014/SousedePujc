@@ -24,8 +24,6 @@ import {
   Tag,
   Truck,
   Percent,
-  Heart,
-  Share2,
 } from "lucide-react"
 import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
@@ -46,7 +44,6 @@ import {
 } from "@/components/ui/dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { motion } from "framer-motion"
 
 const conditionLabels = {
   excellent: "Výborný",
@@ -80,39 +77,6 @@ const findApplicableDiscount = (days: number) => {
   return sortedDiscounts.find((discount) => days >= discount.days) || null
 }
 
-// Komponenta pro animované pozadí
-const AnimatedBackground = () => {
-  return (
-    <div className="fixed inset-0 -z-10 overflow-hidden opacity-5 pointer-events-none">
-      <div className="absolute inset-0">
-        {Array.from({ length: 20 }).map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full bg-blue-500"
-            style={{
-              width: Math.random() * 100 + 50,
-              height: Math.random() * 100 + 50,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              x: [0, Math.random() * 100 - 50],
-              y: [0, Math.random() * 100 - 50],
-              scale: [1, Math.random() + 0.5, 1],
-            }}
-            transition={{
-              duration: Math.random() * 20 + 10,
-              repeat: Number.POSITIVE_INFINITY,
-              repeatType: "reverse",
-              ease: "easeInOut",
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function ItemDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -131,8 +95,6 @@ export default function ItemDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
-  const [isLiked, setIsLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(Math.floor(Math.random() * 50))
 
   const loadItem = async () => {
     try {
@@ -267,33 +229,11 @@ export default function ItemDetailPage() {
     }
   }
 
-  const handleLike = () => {
-    setIsLiked(!isLiked)
-    setLikeCount(isLiked ? likeCount - 1 : likeCount + 1)
-  }
-
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: item?.title || "Sdílení předmětu",
-        text: `Podívej se na tento předmět: ${item?.title}`,
-        url: window.location.href,
-      })
-    } else {
-      navigator.clipboard.writeText(window.location.href)
-      alert("Odkaz byl zkopírován do schránky!")
-    }
-  }
-
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-center items-center h-64">
-          <motion.div
-            className="h-12 w-12 border-4 border-blue-600 rounded-full border-t-transparent"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-          />
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       </div>
     )
@@ -335,508 +275,463 @@ export default function ItemDetailPage() {
   const categoryName = item.category?.name || "Nezařazeno"
 
   return (
-    <>
-      <AnimatedBackground />
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="container mx-auto px-4 py-8"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Levý sloupec - Obrázky a základní info */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mb-6"
-            >
-              <ImageGallery images={item.images} alt={item.title} />
-            </motion.div>
-
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <motion.h1
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: 0.3 }}
-                    className="text-3xl font-bold text-gray-900"
-                  >
-                    {item.title}
-                  </motion.h1>
-                  <div className="flex items-center gap-2">
-                    {isOwner && (
-                      <>
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Upravit
-                        </Button>
-                        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              Smazat
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center">
-                                <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-                                Smazat předmět
-                              </DialogTitle>
-                            </DialogHeader>
-                            <DialogDescription>
-                              Opravdu chcete smazat předmět <strong>{item.title}</strong>? Tato akce je nevratná a smaže
-                              všechny související rezervace.
-                            </DialogDescription>
-                            <DialogFooter className="flex space-x-2 justify-end">
-                              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                                Zrušit
-                              </Button>
-                              <Button variant="destructive" onClick={handleDeleteItem} disabled={deleting}>
-                                {deleting ? "Mazání..." : "Smazat předmět"}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </>
-                    )}
-                    <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
-                  </div>
-                </div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4 }}
-                  className="flex flex-wrap items-center gap-4 text-gray-600 mb-4"
-                >
-                  {item.location && (
-                    <div className="flex items-center">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {item.location}
-                    </div>
-                  )}
-                  <div className="flex items-center">
-                    <CalendarIcon className="h-4 w-4 mr-1" />
-                    Přidáno {new Date(item.created_at).toLocaleDateString("cs-CZ")}
-                  </div>
-                  <div className="flex items-center gap-3 ml-auto">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={handleLike}
-                      className="flex items-center gap-1 text-gray-500 hover:text-red-500"
-                    >
-                      <Heart
-                        className={`h-5 w-5 ${isLiked ? "fill-red-500 text-red-500" : ""}`}
-                        fill={isLiked ? "currentColor" : "none"}
-                      />
-                      <span>{likeCount}</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={handleShare}
-                      className="flex items-center gap-1 text-gray-500 hover:text-blue-500"
-                    >
-                      <Share2 className="h-5 w-5" />
-                      <span>Sdílet</span>
-                    </motion.button>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.5 }}
-                >
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid grid-cols-3 mb-4">
-                      <TabsTrigger value="details">Detaily</TabsTrigger>
-                      <TabsTrigger value="rules">Podmínky půjčení</TabsTrigger>
-                      <TabsTrigger value="owner">O majiteli</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="details" className="space-y-4">
-                      <div className="prose max-w-none">
-                        <p className="text-gray-700 text-lg leading-relaxed">{item.description}</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                        <motion.div
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.5, delay: 0.6 }}
-                        >
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-lg flex items-center">
-                                <Tag className="h-5 w-5 mr-2 text-blue-600" />
-                                Specifikace
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <ul className="space-y-2">
-                                <li className="flex justify-between">
-                                  <span className="text-gray-600">Kategorie:</span>
-                                  <span className="font-medium">{categoryName}</span>
-                                </li>
-                                <li className="flex justify-between">
-                                  <span className="text-gray-600">Stav:</span>
-                                  <Badge className={conditionColors[item.condition]}>
-                                    {conditionLabels[item.condition]}
-                                  </Badge>
-                                </li>
-                                {item.brand && (
-                                  <li className="flex justify-between">
-                                    <span className="text-gray-600">Značka:</span>
-                                    <span className="font-medium">{item.brand}</span>
-                                  </li>
-                                )}
-                                {item.model && (
-                                  <li className="flex justify-between">
-                                    <span className="text-gray-600">Model:</span>
-                                    <span className="font-medium">{item.model}</span>
-                                  </li>
-                                )}
-                              </ul>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-
-                        <motion.div
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.5, delay: 0.7 }}
-                        >
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-lg flex items-center">
-                                <Percent className="h-5 w-5 mr-2 text-green-600" />
-                                Slevy při delším pronájmu
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <ul className="space-y-2">
-                                {DISCOUNTS.map((discount) => (
-                                  <li key={discount.days} className="flex justify-between items-center">
-                                    <span className="text-gray-600">
-                                      {discount.label} ({discount.days}+ dní):
-                                    </span>
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                      -{discount.percentage}%
-                                    </Badge>
-                                  </li>
-                                ))}
-                              </ul>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="rules" className="space-y-4">
-                      <Card>
-                        <CardContent className="pt-6">
-                          <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="deposit">
-                              <AccordionTrigger className="text-base font-medium">
-                                <div className="flex items-center">
-                                  <ShieldCheck className="h-5 w-5 mr-2 text-blue-600" />
-                                  Kauce
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <p className="text-gray-700 mb-2">
-                                  Při zapůjčení předmětu je vyžadována vratná kauce ve výši {item.deposit_amount} Kč.
-                                </p>
-                                <p className="text-gray-700">
-                                  Kauce bude vrácena v plné výši při vrácení předmětu v původním stavu.
-                                </p>
-                              </AccordionContent>
-                            </AccordionItem>
-
-                            <AccordionItem value="pickup">
-                              <AccordionTrigger className="text-base font-medium">
-                                <div className="flex items-center">
-                                  <Truck className="h-5 w-5 mr-2 text-blue-600" />
-                                  Vyzvednutí a vrácení
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <p className="text-gray-700">
-                                  Předmět je k vyzvednutí na adrese: {item.location || "Dle domluvy s majitelem"}.
-                                </p>
-                                <p className="text-gray-700 mt-2">
-                                  Přesný čas vyzvednutí a vrácení bude domluven s majitelem po potvrzení rezervace.
-                                </p>
-                              </AccordionContent>
-                            </AccordionItem>
-
-                            <AccordionItem value="payment">
-                              <AccordionTrigger className="text-base font-medium">
-                                <div className="flex items-center">
-                                  <CheckCircle className="h-5 w-5 mr-2 text-blue-600" />
-                                  Platba a storno podmínky
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <p className="text-gray-700 mb-2">
-                                  Platba probíhá při vyzvednutí předmětu v hotovosti nebo dle domluvy s majitelem.
-                                </p>
-                                <p className="text-gray-700 mb-2">Storno podmínky:</p>
-                                <ul className="list-disc pl-5 space-y-1 text-gray-700">
-                                  <li>Zrušení více než 48 hodin před začátkem rezervace - bez poplatku</li>
-                                  <li>Zrušení méně než 48 hodin před začátkem rezervace - 50% z celkové částky</li>
-                                  <li>Nedostavení se bez zrušení - 100% z celkové částky</li>
-                                </ul>
-                              </AccordionContent>
-                            </AccordionItem>
-
-                            <AccordionItem value="damage">
-                              <AccordionTrigger className="text-base font-medium">
-                                <div className="flex items-center">
-                                  <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
-                                  Poškození předmětu
-                                </div>
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <p className="text-gray-700 mb-2">
-                                  V případě poškození předmětu bude z kauce odečtena částka odpovídající opravě nebo
-                                  náhradě.
-                                </p>
-                                <p className="text-gray-700">
-                                  Při úplném zničení nebo ztrátě předmětu je vypůjčitel povinen uhradit plnou hodnotu
-                                  předmětu.
-                                </p>
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-
-                    <TabsContent value="owner">
-                      <Card>
-                        <CardContent className="pt-6">
-                          <div className="flex items-center space-x-4 mb-4">
-                            <Link
-                              href={`/users/${item.owner_id}`}
-                              className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
-                            >
-                              <Avatar className="h-16 w-16">
-                                <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} />
-                                <AvatarFallback>{item.owner?.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <h4 className="font-medium text-xl">{item.owner?.name}</h4>
-                                <div className="flex items-center space-x-2">
-                                  <RatingDisplay rating={item.owner?.reputation_score || 0} reviewCount={0} size="sm" />
-                                  {item.owner?.is_verified && (
-                                    <div className="flex items-center text-green-600">
-                                      <Shield className="h-4 w-4 mr-1" />
-                                      <span className="text-sm">Ověřený</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </Link>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div className="bg-gray-50 p-3 rounded-md text-center">
-                              <div className="text-gray-500 text-sm">Člen od</div>
-                              <div className="font-medium">
-                                {new Date(item.owner?.created_at || Date.now()).toLocaleDateString("cs-CZ")}
-                              </div>
-                            </div>
-                            <div className="bg-gray-50 p-3 rounded-md text-center">
-                              <div className="text-gray-500 text-sm">Předmětů k půjčení</div>
-                              <div className="font-medium">{item.owner?.item_count || 1}</div>
-                            </div>
-                          </div>
-
-                          <div className="mt-4">
-                            <h5 className="font-medium mb-2 flex items-center">
-                              <Star className="h-4 w-4 mr-1 text-yellow-500" />
-                              Hodnocení a recenze
-                            </h5>
-                            {item.owner?.reviews && item.owner.reviews.length > 0 ? (
-                              <div className="space-y-3">
-                                {item.owner.reviews.slice(0, 3).map((review, index) => (
-                                  <div key={index} className="border-b pb-3">
-                                    <div className="flex justify-between items-center mb-1">
-                                      <div className="flex items-center">
-                                        <Avatar className="h-6 w-6 mr-2">
-                                          <AvatarImage src={review.reviewer_avatar || "/placeholder.svg"} />
-                                          <AvatarFallback>{review.reviewer_name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <span className="font-medium">{review.reviewer_name}</span>
-                                      </div>
-                                      <RatingDisplay rating={review.rating} size="sm" />
-                                    </div>
-                                    <p className="text-sm text-gray-600">{review.comment}</p>
-                                    <div className="text-xs text-gray-400 mt-1">
-                                      {new Date(review.created_at).toLocaleDateString("cs-CZ")}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-gray-500 text-sm italic">Zatím žádné recenze</p>
-                            )}
-
-                            <Button variant="outline" size="sm" className="mt-4" asChild>
-                              <Link href={`/users/${item.owner_id}`}>Zobrazit profil majitele</Link>
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  </Tabs>
-                </motion.div>
-              </div>
-            </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Levý sloupec - Obrázky a základní info */}
+        <div className="lg:col-span-2">
+          <div className="mb-6">
+            <ImageGallery images={item.images} alt={item.title} />
           </div>
 
-          {/* Pravý sloupec - Rezervace */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="lg:col-span-1"
-          >
-            <Card className="sticky top-24">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Rezervace</span>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-blue-600">{item.daily_rate} Kč</div>
-                    <div className="text-sm text-gray-500">za den</div>
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-3xl font-bold text-gray-900">{item.title}</h1>
+                <div className="flex items-center gap-2">
+                  {isOwner && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
+                        <Edit className="h-4 w-4 mr-1" />
+                        Upravit
+                      </Button>
+                      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Smazat
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center">
+                              <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                              Smazat předmět
+                            </DialogTitle>
+                          </DialogHeader>
+                          <DialogDescription>
+                            Opravdu chcete smazat předmět <strong>{item.title}</strong>? Tato akce je nevratná a smaže
+                            všechny související rezervace.
+                          </DialogDescription>
+                          <DialogFooter className="flex space-x-2 justify-end">
+                            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                              Zrušit
+                            </Button>
+                            <Button variant="destructive" onClick={handleDeleteItem} disabled={deleting}>
+                              {deleting ? "Mazání..." : "Smazat předmět"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  )}
+                  <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4 text-gray-600 mb-4">
+                {item.location && (
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    {item.location}
                   </div>
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {!item.is_available && (
-                  <Alert>
-                    <AlertDescription>Tento předmět momentálně není dostupný pro půjčení.</AlertDescription>
-                  </Alert>
                 )}
+                <div className="flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-1" />
+                  Přidáno {new Date(item.created_at).toLocaleDateString("cs-CZ")}
+                </div>
+              </div>
 
-                {isOwner && (
-                  <Alert>
-                    <AlertDescription>Toto je váš předmět. Nemůžete si ho půjčit sami od sebe.</AlertDescription>
-                  </Alert>
-                )}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-3 mb-4">
+                  <TabsTrigger value="details">Detaily</TabsTrigger>
+                  <TabsTrigger value="rules">Podmínky půjčení</TabsTrigger>
+                  <TabsTrigger value="owner">O majiteli</TabsTrigger>
+                </TabsList>
 
-                {!user && (
-                  <Alert>
-                    <AlertDescription>Pro rezervaci se musíte nejprve přihlásit.</AlertDescription>
-                  </Alert>
-                )}
+                <TabsContent value="details" className="space-y-4">
+                  <div className="prose max-w-none">
+                    <p className="text-gray-700 text-lg leading-relaxed">{item.description}</p>
+                  </div>
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg flex items-center">
+                          <Tag className="h-5 w-5 mr-2 text-blue-600" />
+                          Specifikace
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2">
+                          <li className="flex justify-between">
+                            <span className="text-gray-600">Kategorie:</span>
+                            <span className="font-medium">{categoryName}</span>
+                          </li>
+                          <li className="flex justify-between">
+                            <span className="text-gray-600">Stav:</span>
+                            <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                          </li>
+                          {item.brand && (
+                            <li className="flex justify-between">
+                              <span className="text-gray-600">Značka:</span>
+                              <span className="font-medium">{item.brand}</span>
+                            </li>
+                          )}
+                          {item.model && (
+                            <li className="flex justify-between">
+                              <span className="text-gray-600">Model:</span>
+                              <span className="font-medium">{item.model}</span>
+                            </li>
+                          )}
+                        </ul>
+                      </CardContent>
+                    </Card>
 
-                {success && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <AlertDescription className="text-green-800">{success}</AlertDescription>
-                  </Alert>
-                )}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg flex items-center">
+                          <Percent className="h-5 w-5 mr-2 text-green-600" />
+                          Slevy při delším pronájmu
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2">
+                          {DISCOUNTS.map((discount) => (
+                            <li key={discount.days} className="flex justify-between items-center">
+                              <span className="text-gray-600">
+                                {discount.label} ({discount.days}+ dní):
+                              </span>
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                -{discount.percentage}%
+                              </Badge>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
 
-                {item.is_available && !isOwner && user && (
-                  <>
-                    <div>
-                      <div className="mt-2">
-                        <BookingCalendar
-                          itemId={item.id}
-                          selectedDates={selectedDates}
-                          onSelect={setSelectedDates}
-                          dailyRate={item.daily_rate}
-                          depositAmount={item.deposit_amount}
-                        />
+                <TabsContent value="rules" className="space-y-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="deposit">
+                          <AccordionTrigger className="text-base font-medium">
+                            <div className="flex items-center">
+                              <ShieldCheck className="h-5 w-5 mr-2 text-blue-600" />
+                              Kauce
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className="text-gray-700 mb-2">
+                              Při zapůjčení předmětu je vyžadována vratná kauce ve výši {item.deposit_amount} Kč.
+                            </p>
+                            <p className="text-gray-700">
+                              Kauce bude vrácena v plné výši při vrácení předmětu v původním stavu.
+                            </p>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="pickup">
+                          <AccordionTrigger className="text-base font-medium">
+                            <div className="flex items-center">
+                              <Truck className="h-5 w-5 mr-2 text-blue-600" />
+                              Vyzvednutí a vrácení
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className="text-gray-700">
+                              Předmět je k vyzvednutí na adrese: {item.location || "Dle domluvy s majitelem"}.
+                            </p>
+                            <p className="text-gray-700 mt-2">
+                              Přesný čas vyzvednutí a vrácení bude domluven s majitelem po potvrzení rezervace.
+                            </p>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="payment">
+                          <AccordionTrigger className="text-base font-medium">
+                            <div className="flex items-center">
+                              <CheckCircle className="h-5 w-5 mr-2 text-blue-600" />
+                              Platba a storno podmínky
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className="text-gray-700 mb-2">
+                              Platba probíhá při vyzvednutí předmětu v hotovosti nebo dle domluvy s majitelem.
+                            </p>
+                            <p className="text-gray-700 mb-2">Storno podmínky:</p>
+                            <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                              <li>Zrušení více než 48 hodin před začátkem rezervace - bez poplatku</li>
+                              <li>Zrušení méně než 48 hodin před začátkem rezervace - 50% z celkové částky</li>
+                              <li>Nedostavení se bez zrušení - 100% z celkové částky</li>
+                            </ul>
+                          </AccordionContent>
+                        </AccordionItem>
+
+                        <AccordionItem value="damage">
+                          <AccordionTrigger className="text-base font-medium">
+                            <div className="flex items-center">
+                              <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
+                              Poškození předmětu
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <p className="text-gray-700 mb-2">
+                              V případě poškození předmětu bude z kauce odečtena částka odpovídající opravě nebo
+                              náhradě.
+                            </p>
+                            <p className="text-gray-700">
+                              Při úplném zničení nebo ztrátě předmětu je vypůjčitel povinen uhradit plnou hodnotu
+                              předmětu.
+                            </p>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="owner">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-4 mb-4">
+                        <Link
+                          href={`/users/${item.owner_id}`}
+                          className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                        >
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} />
+                            <AvatarFallback>{item.owner?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h4 className="font-medium text-xl">{item.owner?.name}</h4>
+                            <div className="flex items-center space-x-2">
+                              <RatingDisplay rating={item.owner?.reputation_score || 0} reviewCount={0} size="sm" />
+                              {item.owner?.is_verified && (
+                                <div className="flex items-center text-green-600">
+                                  <Shield className="h-4 w-4 mr-1" />
+                                  <span className="text-sm">Ověřený</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
                       </div>
-                    </div>
 
-                    <div>
-                      <Label htmlFor="message">Zpráva pro majitele (volitelné)</Label>
-                      <Textarea
-                        id="message"
-                        placeholder="Napište zprávu majiteli..."
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-gray-50 p-3 rounded-md text-center">
+                          <div className="text-gray-500 text-sm">Člen od</div>
+                          <div className="font-medium">
+                            {new Date(item.owner?.created_at || Date.now()).toLocaleDateString("cs-CZ")}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-md text-center">
+                          <div className="text-gray-500 text-sm">Předmětů k půjčení</div>
+                          <div className="font-medium">{item.owner?.item_count || 1}</div>
+                        </div>
+                      </div>
 
-                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                      <Button
-                        onClick={handleBooking}
-                        disabled={!selectedDates.from || !selectedDates.to || bookingLoading}
-                        className="w-full"
-                        size="lg"
-                      >
-                        {bookingLoading ? (
-                          <div className="flex items-center">
-                            <motion.div
-                              className="h-4 w-4 border-2 border-white rounded-full border-t-transparent mr-2"
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                            />
-                            Odesílání žádosti...
+                      <div className="mt-4">
+                        <h5 className="font-medium mb-2 flex items-center">
+                          <Star className="h-4 w-4 mr-1 text-yellow-500" />
+                          Hodnocení a recenze
+                        </h5>
+                        {item.owner?.reviews && item.owner.reviews.length > 0 ? (
+                          <div className="space-y-3">
+                            {item.owner.reviews.slice(0, 3).map((review, index) => (
+                              <div key={index} className="border-b pb-3">
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="flex items-center">
+                                    <Avatar className="h-6 w-6 mr-2">
+                                      <AvatarImage src={review.reviewer_avatar || "/placeholder.svg"} />
+                                      <AvatarFallback>{review.reviewer_name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="font-medium">{review.reviewer_name}</span>
+                                  </div>
+                                  <RatingDisplay rating={review.rating} size="sm" />
+                                </div>
+                                <p className="text-sm text-gray-600">{review.comment}</p>
+                                <div className="text-xs text-gray-400 mt-1">
+                                  {new Date(review.created_at).toLocaleDateString("cs-CZ")}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <>
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Odeslat žádost o půjčení
-                          </>
+                          <p className="text-gray-500 text-sm italic">Zatím žádné recenze</p>
                         )}
-                      </Button>
-                    </motion.div>
-                  </>
-                )}
 
-                {!user && (
-                  <div className="space-y-2">
-                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                      <Button asChild className="w-full" size="lg">
-                        <a href="/login">Přihlásit se</a>
-                      </Button>
-                    </motion.div>
-                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                      <Button asChild variant="outline" className="w-full">
-                        <a href="/register">Registrovat se</a>
-                      </Button>
-                    </motion.div>
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p className="flex items-center">
-                    <Clock className="h-3 w-3 mr-1" />
-                    Žádost o půjčení je nezávazná
-                  </p>
-                  <p className="flex items-center">
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    Majitel vás bude kontaktovat
-                  </p>
-                  <p className="flex items-center">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Platba probíhá přímo mezi uživateli
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                        <Button variant="outline" size="sm" className="mt-4" asChild>
+                          <Link href={`/users/${item.owner_id}`}>Zobrazit profil majitele</Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
         </div>
-      </motion.div>
-    </>
+
+        {/* Pravý sloupec - Rezervace */}
+        <div className="lg:col-span-1">
+          <Card className="sticky top-24">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Rezervace</span>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">{item.daily_rate} Kč</div>
+                  <div className="text-sm text-gray-500">za den</div>
+                </div>
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {!item.is_available && (
+                <Alert>
+                  <AlertDescription>Tento předmět momentálně není dostupný pro půjčení.</AlertDescription>
+                </Alert>
+              )}
+
+              {isOwner && (
+                <Alert>
+                  <AlertDescription>Toto je váš předmět. Nemůžete si ho půjčit sami od sebe.</AlertDescription>
+                </Alert>
+              )}
+
+              {!user && (
+                <Alert>
+                  <AlertDescription>Pro rezervaci se musíte nejprve přihlásit.</AlertDescription>
+                </Alert>
+              )}
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {success && (
+                <Alert className="border-green-200 bg-green-50">
+                  <AlertDescription className="text-green-800">{success}</AlertDescription>
+                </Alert>
+              )}
+
+              {item.is_available && !isOwner && user && (
+                <>
+                  <div>
+                    <div className="mt-2">
+                      <BookingCalendar
+                        itemId={item.id}
+                        selectedDates={selectedDates}
+                        onSelect={setSelectedDates}
+                        dailyRate={item.daily_rate}
+                        depositAmount={item.deposit_amount}
+                      />
+                    </div>
+                  </div>
+
+                  {selectedDates.from && selectedDates.to && (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span>Doba půjčení:</span>
+                        <span className="font-medium">{days} dní</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span>Cena za den:</span>
+                        <span>{item.daily_rate} Kč</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span>Základní cena:</span>
+                        <span>{basePrice} Kč</span>
+                      </div>
+
+                      {discount && (
+                        <div className="flex justify-between items-center mb-2 text-green-600">
+                          <span>Sleva ({discount.percentage}%):</span>
+                          <span>-{discountAmount} Kč</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center font-bold text-lg border-t border-blue-200 pt-2 mt-2">
+                        <span>Celkem:</span>
+                        <span>{finalPrice} Kč</span>
+                      </div>
+                      {item.deposit_amount > 0 && (
+                        <div className="flex justify-between items-center text-sm text-gray-600 mt-1">
+                          <div className="flex items-center">
+                            <span>Kauce:</span>
+                            <span className="ml-1 text-xs text-gray-500">(vratná)</span>
+                          </div>
+                          <span>{item.deposit_amount} Kč</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="message">Zpráva pro majitele (volitelné)</Label>
+                    <Textarea
+                      id="message"
+                      placeholder="Napište zprávu majiteli..."
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleBooking}
+                    disabled={!selectedDates.from || !selectedDates.to || bookingLoading}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {bookingLoading ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Odesílání žádosti...
+                      </div>
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Odeslat žádost o půjčení
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+
+              {!user && (
+                <div className="space-y-2">
+                  <Button asChild className="w-full" size="lg">
+                    <a href="/login">Přihlásit se</a>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full">
+                    <a href="/register">Registrovat se</a>
+                  </Button>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 space-y-1">
+                <p className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Žádost o půjčení je nezávazná
+                </p>
+                <p className="flex items-center">
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  Majitel vás bude kontaktovat
+                </p>
+                <p className="flex items-center">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Platba probíhá přímo mezi uživateli
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   )
 }

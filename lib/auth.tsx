@@ -3,23 +3,18 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useRouter } from "next/navigation"
-import type { User } from "@supabase/supabase-js"
+import type { User } from "./types"
+import { db } from "./database"
+import { supabase } from "./supabase"
 
-// Změnit definici AuthContextType:
-type AuthContextType = {
+interface AuthContextType {
   user: User | null
-  loading: boolean
-  login: (
-    email: string,
-    password: string,
-    rememberMe?: boolean,
-  ) => Promise<{ success: boolean; needsVerification?: boolean }>
-  register: (data: { name: string; email: string; password: string }) => Promise<boolean>
-  logout: () => Promise<void>
+  login: (email: string, password: string) => Promise<{ success: boolean; needsVerification?: boolean }>
+  logout: () => void
+  register: (userData: { email: string; name: string; password: string }) => Promise<boolean>
   resendVerification: (email: string) => Promise<boolean>
-  refreshUser?: () => Promise<void> // Přidáno jako volitelné pro zpětnou kompatibilitu
+  loading: boolean
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -27,80 +22,102 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
-  const router = useRouter()
 
-  // Přidat funkci pro získání uživatelských dat z profilu
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    const loadUser = async () => {
+      try {
+        // Zkontrolujeme, zda je uživatel přihlášen v Supabase
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-      if (session?.user) {
-        // Získat dodatečná data z profilu
-        const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
-
-        // Sloučit data z auth a profilu
-        setUser({
-          ...session.user,
-          name: profileData?.name || session.user.email?.split("@")[0] || "Uživatel",
-          avatar_url: profileData?.avatar_url || null,
-        })
-      } else {
-        setUser(null)
+        if (session?.user) {
+          // Získáme uživatelská data z naší databáze
+          const userData = await db.getUserByEmail(session.user.email || "")
+          if (userData) {
+            // Aktualizujeme stav ověření na základě Supabase
+            if (session.user.email_confirmed_at && !userData.is_verified) {
+              await db.updateUser(userData.id, { is_verified: true })
+              userData.is_verified = true
+            }
+            setUser(userData)
+          } else {
+            // Pokud uživatel existuje v Supabase, ale ne v naší DB, odhlásíme ho
+            await supabase.auth.signOut()
+          }
+        }
+      } catch (error) {
+        console.error("Error loading user:", error)
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
 
-    getUser()
+    // Načteme uživatele při startu
+    loadUser()
 
+    // Nastavíme listener pro změny autentizačního stavu
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        // Získat dodatečná data z profilu
-        const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
-
-        // Sloučit data z auth a profilu
-        setUser({
-          ...session.user,
-          name: profileData?.name || session.user.email?.split("@")[0] || "Uživatel",
-          avatar_url: profileData?.avatar_url || null,
-        })
-      } else {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        const userData = await db.getUserByEmail(session.user.email || "")
+        if (userData) {
+          // Aktualizujeme stav ověření
+          if (session.user.email_confirmed_at && !userData.is_verified) {
+            await db.updateUser(userData.id, { is_verified: true })
+            userData.is_verified = true
+          }
+          setUser(userData)
+        }
+      } else if (event === "SIGNED_OUT") {
         setUser(null)
       }
     })
 
+    // Cleanup listener při unmount
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
-  const login = async (email: string, password: string, rememberMe = false) => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean }> => {
     try {
+      // Přihlášení pomocí Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          // Pokud je rememberMe true, nastavíme expirationTime na 30 dní, jinak na 8 hodin
-          expiresIn: rememberMe ? 30 * 24 * 60 * 60 : 8 * 60 * 60,
-        },
       })
 
       if (error) {
+        // Zkontrolujeme, zda je problém s neověřeným e-mailem
         if (error.message.includes("Email not confirmed")) {
           return { success: false, needsVerification: true }
         }
+        console.error("Login error:", error.message)
         return { success: false }
       }
 
-      if (data.user) {
+      // Pokud není e-mail ověřen, odhlásíme uživatele
+      if (data.user && !data.user.email_confirmed_at) {
+        await supabase.auth.signOut()
+        return { success: false, needsVerification: true }
+      }
+
+      // Získáme uživatelská data z naší databáze
+      const userData = await db.getUserByEmail(email)
+      if (userData) {
+        // Aktualizujeme stav ověření
+        if (data.user?.email_confirmed_at && !userData.is_verified) {
+          await db.updateUser(userData.id, { is_verified: true })
+          userData.is_verified = true
+        }
+        setUser(userData)
         return { success: true }
       }
 
+      // Pokud uživatel neexistuje v naší DB, odhlásíme ho ze Supabase
+      await supabase.auth.signOut()
       return { success: false }
     } catch (error) {
       console.error("Login error:", error)
@@ -108,37 +125,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const register = async (data: { name: string; email: string; password: string }) => {
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
+
+  const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
+      // Zkontrolujeme, zda uživatel již existuje v naší databázi
+      const existingUser = await db.getUserByEmail(userData.email)
+      if (existingUser) {
+        return false
+      }
+
+      // Registrace pomocí Supabase Auth s povoleným e-mailovým ověřením
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
         options: {
           data: {
-            name: data.name,
+            name: userData.name,
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
       if (error) {
-        console.error("Registration error:", error)
+        console.error("Registration error:", error.message)
         return false
       }
 
-      // Vytvoření záznamu v tabulce profiles
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          email: data.email,
-          name: data.name,
-        },
-      ])
+      // Vytvoříme uživatele v naší databázi (neověřený)
+      await db.createUser({
+        email: userData.email,
+        name: userData.name,
+        is_verified: false,
+        is_admin: false,
+        reputation_score: 5.0,
+      })
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
-        // I když se nepodaří vytvořit profil, registrace proběhla úspěšně
-      }
-
+      // Nebudeme uživatele automaticky přihlašovat
       return true
     } catch (error) {
       console.error("Registration error:", error)
@@ -146,12 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
-  }
-
-  const resendVerification = async (email: string) => {
+  const resendVerification = async (email: string): Promise<boolean> => {
     try {
       const { error } = await supabase.auth.resend({
         type: "signup",
@@ -162,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) {
-        console.error("Resend verification error:", error)
+        console.error("Resend verification error:", error.message)
         return false
       }
 
@@ -173,11 +194,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, resendVerification }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  // Přidáme funkci pro refresh uživatele
+  const refreshUser = async () => {
+    if (!user) return
+
+    try {
+      const userData = await db.getUserById(user.id)
+      if (userData) {
+        setUser(userData)
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error)
+    }
+  }
+
+  // Přidáme refreshUser do context value
+  const contextValue = { user, login, logout, register, resendVerification, refreshUser, loading }
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

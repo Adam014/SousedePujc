@@ -11,9 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
-import { Package, Mail, Eye, EyeOff } from "lucide-react"
-import { Checkbox } from "@/components/ui/checkbox"
-import { motion } from "framer-motion"
+import { Package, Mail } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -22,8 +20,6 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resendingVerification, setResendingVerification] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const { login, resendVerification } = useAuth()
   const router = useRouter()
 
@@ -34,7 +30,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const result = await login(email, password, rememberMe)
+      const result = await login(email, password)
       if (result.success) {
         router.push("/")
       } else if (result.needsVerification) {
@@ -73,27 +69,13 @@ export default function LoginPage() {
     }
   }
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword)
-  }
-
   return (
-    <motion.div
-      className="min-h-screen flex items-center justify-center bg-gray-50/50 py-12 px-4 sm:px-6 lg:px-8"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <motion.div
-            className="flex justify-center mb-4"
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5 }}
-          >
+          <div className="flex justify-center mb-4">
             <Package className="h-12 w-12 text-blue-600" />
-          </motion.div>
+          </div>
           <CardTitle className="text-2xl">Přihlášení</CardTitle>
           <CardDescription>Přihlaste se do svého účtu</CardDescription>
         </CardHeader>
@@ -142,34 +124,14 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Heslo</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={togglePasswordVisibility}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(!!checked)} />
-              <Label
-                htmlFor="remember"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Zapamatovat si mě
-              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+              />
             </div>
           </CardContent>
 
@@ -187,6 +149,6 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
-    </motion.div>
+    </div>
   )
 }
