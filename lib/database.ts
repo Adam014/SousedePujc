@@ -631,26 +631,78 @@ export const db = {
     return data
   },
 
+  // Opravená funkce pro načítání zpráv - rozdělíme na dva dotazy
   async getChatMessagesByRoom(roomId: string): Promise<ChatMessage[]> {
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select(`
-        *,
-        sender:users(*),
-        reactions:message_reactions(
+    try {
+      // Nejprve načteme všechny zprávy s jejich základními daty
+      const { data: messages, error: messagesError } = await supabase
+        .from("chat_messages")
+        .select(`
           *,
-          user:users(*)
-        )
-      `)
-      .eq("room_id", roomId)
-      .order("created_at", { ascending: true })
+          sender:users(*),
+          reactions:message_reactions(
+            *,
+            user:users(*)
+          )
+        `)
+        .eq("room_id", roomId)
+        .order("created_at", { ascending: true })
 
-    if (error) {
-      console.error("Error fetching chat messages:", error)
+      if (messagesError) {
+        console.error("Error fetching chat messages:", messagesError)
+        throw messagesError
+      }
+
+      if (!messages || messages.length === 0) {
+        return []
+      }
+
+      // Najdeme všechny reply_to_id které nejsou null
+      const replyToIds = messages
+        .filter((msg) => msg.reply_to_id)
+        .map((msg) => msg.reply_to_id)
+        .filter((id, index, arr) => arr.indexOf(id) === index) // unique values
+
+      let repliedMessages: any[] = []
+
+      // Pokud máme nějaké reply_to_id, načteme je
+      if (replyToIds.length > 0) {
+        const { data: replies, error: repliesError } = await supabase
+          .from("chat_messages")
+          .select(`
+            id,
+            message,
+            sender_id,
+            created_at,
+            sender:users(id, name, avatar_url)
+          `)
+          .in("id", replyToIds)
+
+        if (repliesError) {
+          console.error("Error fetching replied messages:", repliesError)
+          // Pokračujeme bez replied zpráv
+        } else {
+          repliedMessages = replies || []
+        }
+      }
+
+      // Spojíme zprávy s jejich replied zprávami
+      const messagesWithReplies = messages.map((message) => {
+        if (message.reply_to_id) {
+          const repliedMessage = repliedMessages.find((reply) => reply.id === message.reply_to_id)
+          return {
+            ...message,
+            reply_to: repliedMessage || null,
+          }
+        }
+        return message
+      })
+
+      return messagesWithReplies
+    } catch (error) {
+      console.error("Error in getChatMessagesByRoom:", error)
       throw error
     }
-
-    return data || []
   },
 
   // V sendChatMessage funkci nahradit filtrování:
@@ -706,8 +758,29 @@ export const db = {
       })
       .eq("id", filteredMessageData.room_id)
 
+    // Pokud je to reply, načteme replied zprávu
+    let messageWithReply = data
+    if (data.reply_to_id) {
+      const { data: repliedMessage } = await supabase
+        .from("chat_messages")
+        .select(`
+          id,
+          message,
+          sender_id,
+          created_at,
+          sender:users(id, name, avatar_url)
+        `)
+        .eq("id", data.reply_to_id)
+        .single()
+
+      messageWithReply = {
+        ...data,
+        reply_to: repliedMessage || null,
+      }
+    }
+
     return {
-      message: data,
+      message: messageWithReply,
       wasFiltered: filterResult.wasFiltered,
       filteredWords: filterResult.filteredWords,
     }
@@ -770,8 +843,29 @@ export const db = {
         )
       }
 
+      // Pokud je to reply, načteme replied zprávu
+      let messageWithReply = data
+      if (data.reply_to_id) {
+        const { data: repliedMessage } = await supabase
+          .from("chat_messages")
+          .select(`
+            id,
+            message,
+            sender_id,
+            created_at,
+            sender:users(id, name, avatar_url)
+          `)
+          .eq("id", data.reply_to_id)
+          .single()
+
+        messageWithReply = {
+          ...data,
+          reply_to: repliedMessage || null,
+        }
+      }
+
       return {
-        message: data,
+        message: messageWithReply,
         wasFiltered: filterResult.wasFiltered,
         filteredWords: filterResult.filteredWords,
       }
@@ -850,62 +944,93 @@ export const db = {
     }
   },
 
-  // Funkce pro reakce na zprávy
+  // Opravené funkce pro reakce na zprávy
   async addMessageReaction(messageId: string, userId: string, emoji: string): Promise<MessageReaction> {
-    const { data, error } = await supabase
-      .from("message_reactions")
-      .insert([
-        {
-          message_id: messageId,
-          user_id: userId,
-          emoji: emoji,
-        },
-      ])
-      .select(`
-        *,
-        user:users(*)
-      `)
-      .single()
+    try {
+      // Nejprve zkontrolujeme, zda reakce již neexistuje
+      const { data: existingReaction } = await supabase
+        .from("message_reactions")
+        .select("*")
+        .eq("message_id", messageId)
+        .eq("user_id", userId)
+        .eq("emoji", emoji)
+        .maybeSingle()
 
-    if (error) {
-      console.error("Error adding message reaction:", error)
+      if (existingReaction) {
+        // Reakce již existuje, vrátíme ji s user daty
+        const user = await this.getUserById(userId)
+        return { ...existingReaction, user }
+      }
+
+      // Přidáme novou reakci
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .insert([
+          {
+            message_id: messageId,
+            user_id: userId,
+            emoji: emoji,
+          },
+        ])
+        .select(`
+          *,
+          user:users(*)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error adding message reaction:", error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error in addMessageReaction:", error)
       throw error
     }
-
-    return data
   },
 
   async removeMessageReaction(messageId: string, userId: string, emoji: string): Promise<boolean> {
-    const { error } = await supabase
-      .from("message_reactions")
-      .delete()
-      .eq("message_id", messageId)
-      .eq("user_id", userId)
-      .eq("emoji", emoji)
+    try {
+      const { error } = await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", messageId)
+        .eq("user_id", userId)
+        .eq("emoji", emoji)
 
-    if (error) {
-      console.error("Error removing message reaction:", error)
+      if (error) {
+        console.error("Error removing message reaction:", error)
+        throw error
+      }
+
+      return true
+    } catch (error) {
+      console.error("Error in removeMessageReaction:", error)
       throw error
     }
-
-    return true
   },
 
   async getMessageReactions(messageId: string): Promise<MessageReaction[]> {
-    const { data, error } = await supabase
-      .from("message_reactions")
-      .select(`
-        *,
-        user:users(*)
-      `)
-      .eq("message_id", messageId)
-      .order("created_at", { ascending: true })
+    try {
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .select(`
+          *,
+          user:users(*)
+        `)
+        .eq("message_id", messageId)
+        .order("created_at", { ascending: true })
 
-    if (error) {
-      console.error("Error fetching message reactions:", error)
-      throw error
+      if (error) {
+        console.error("Error fetching message reactions:", error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error("Error in getMessageReactions:", error)
+      return []
     }
-
-    return data || []
   },
 }

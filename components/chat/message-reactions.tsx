@@ -10,20 +10,21 @@ interface MessageReactionsProps {
   messageId: string
   reactions: MessageReaction[]
   currentUserId: string
-  onAddReaction: (messageId: string, emoji: string) => void
-  onRemoveReaction: (messageId: string, emoji: string) => void
+  onAddReaction: (messageId: string, emoji: string) => Promise<void>
+  onRemoveReaction: (messageId: string, emoji: string) => Promise<void>
 }
 
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "👏", "🎉"]
 
 export default function MessageReactions({
   messageId,
-  reactions,
+  reactions = [],
   currentUserId,
   onAddReaction,
   onRemoveReaction,
 }: MessageReactionsProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [loading, setLoading] = useState<string | null>(null)
 
   // Seskupíme reakce podle emoji
   const groupedReactions = reactions.reduce(
@@ -37,20 +38,31 @@ export default function MessageReactions({
     {} as Record<string, MessageReaction[]>,
   )
 
-  const handleEmojiClick = (emoji: string) => {
-    const userReaction = reactions.find((r) => r.emoji === emoji && r.user_id === currentUserId)
+  const handleEmojiClick = async (emoji: string) => {
+    if (loading === emoji) return
 
-    if (userReaction) {
-      onRemoveReaction(messageId, emoji)
-    } else {
-      onAddReaction(messageId, emoji)
+    try {
+      setLoading(emoji)
+      const userReaction = reactions.find((r) => r.emoji === emoji && r.user_id === currentUserId)
+
+      if (userReaction) {
+        await onRemoveReaction(messageId, emoji)
+      } else {
+        await onAddReaction(messageId, emoji)
+      }
+
+      setShowEmojiPicker(false)
+    } catch (error) {
+      console.error("Error handling emoji click:", error)
+    } finally {
+      setLoading(null)
     }
-
-    setShowEmojiPicker(false)
   }
 
+  const hasReactions = Object.keys(groupedReactions).length > 0
+
   return (
-    <div className="flex items-center space-x-1 mt-1">
+    <div className="flex items-center space-x-1 mt-1 flex-wrap">
       {/* Zobrazení existujících reakcí */}
       {Object.entries(groupedReactions).map(([emoji, reactionList]) => {
         const hasUserReacted = reactionList.some((r) => r.user_id === currentUserId)
@@ -61,8 +73,13 @@ export default function MessageReactions({
             key={emoji}
             variant={hasUserReacted ? "default" : "outline"}
             size="sm"
-            className="h-6 px-2 text-xs"
+            className={`h-6 px-2 text-xs transition-all ${
+              hasUserReacted
+                ? "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200"
+                : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+            } ${loading === emoji ? "opacity-50" : ""}`}
             onClick={() => handleEmojiClick(emoji)}
+            disabled={loading === emoji}
           >
             <span className="mr-1">{emoji}</span>
             <span>{count}</span>
@@ -73,7 +90,13 @@ export default function MessageReactions({
       {/* Tlačítko pro přidání reakce */}
       <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-6 w-6 p-0 transition-opacity ${
+              hasReactions ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
             <Plus className="h-3 w-3" />
           </Button>
         </PopoverTrigger>
@@ -84,8 +107,9 @@ export default function MessageReactions({
                 key={emoji}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 text-lg"
+                className="h-8 w-8 p-0 text-lg hover:bg-gray-100 transition-colors"
                 onClick={() => handleEmojiClick(emoji)}
+                disabled={loading === emoji}
               >
                 {emoji}
               </Button>

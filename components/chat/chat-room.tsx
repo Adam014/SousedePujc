@@ -5,11 +5,11 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
-import type { ChatRoom as ChatRoomType, User } from "@/lib/types"
+import type { ChatRoom as ChatRoomType, User, ChatMessage } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ArrowLeft, MoreVertical, Edit, Trash2, Check, X } from "lucide-react"
+import { ArrowLeft, MoreVertical, Edit, Trash2, Check, X, Reply } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -26,6 +26,8 @@ import {
 import MessageInput from "./message-input"
 import MessageAttachment from "./message-attachment"
 import MessageReactions from "./message-reactions"
+import MessageReply from "./message-reply"
+import RepliedMessage from "./replied-message"
 import TypingIndicatorComponent from "./typing-indicator"
 import ContentWarning from "./content-warning"
 import { Input } from "@/components/ui/input"
@@ -49,12 +51,13 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null)
   const [showContentWarning, setShowContentWarning] = useState(false)
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Použijeme nový realtime hook
+  // Použijeme realtime hook
   const {
     messages,
     typingUsers,
@@ -143,7 +146,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       setSending(true)
       stopTypingIndicator()
 
-      const result = await sendMessage(newMessage.trim())
+      const result = await sendMessage(newMessage.trim(), undefined, replyToMessage?.id)
 
       // Zobrazit varování pokud byl obsah filtrován
       if (result.wasFiltered) {
@@ -151,6 +154,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       }
 
       setNewMessage("")
+      setReplyToMessage(null)
     } catch (error) {
       console.error("Error sending message:", error)
     } finally {
@@ -165,13 +169,18 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     try {
       setSending(true)
 
-      const result = await sendMessage(fileName, {
-        attachment_url: fileUrl,
-        attachment_name: fileName,
-        attachment_type: fileType,
-      })
+      const result = await sendMessage(
+        fileName,
+        {
+          attachment_url: fileUrl,
+          attachment_name: fileName,
+          attachment_type: fileType,
+        },
+        replyToMessage?.id,
+      )
 
       console.log("File sent:", result)
+      setReplyToMessage(null)
     } catch (error) {
       console.error("Error sending file:", error)
     } finally {
@@ -180,7 +189,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   }
 
   // Zahájení editace zprávy
-  const startEditMessage = (message: any) => {
+  const startEditMessage = (message: ChatMessage) => {
     setEditingMessageId(message.id)
     setEditedMessageText(message.message)
   }
@@ -230,6 +239,16 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     }
   }
 
+  // Nastavení reply zprávy
+  const handleReplyToMessage = (message: ChatMessage) => {
+    setReplyToMessage(message)
+  }
+
+  // Zrušení reply
+  const handleCancelReply = () => {
+    setReplyToMessage(null)
+  }
+
   // Přidání reakce na zprávu
   const handleAddReaction = async (messageId: string, emoji: string) => {
     if (!user) return
@@ -249,6 +268,18 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       await db.removeMessageReaction(messageId, user.id, emoji)
     } catch (error) {
       console.error("Error removing reaction:", error)
+    }
+  }
+
+  // Scroll na replied zprávu
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = document.getElementById(`message-${messageId}`)
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" })
+      messageElement.classList.add("bg-yellow-100")
+      setTimeout(() => {
+        messageElement.classList.remove("bg-yellow-100")
+      }, 2000)
     }
   }
 
@@ -335,7 +366,11 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
               const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender_id !== message.sender_id
 
               return (
-                <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={message.id}
+                  id={`message-${message.id}`}
+                  className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} transition-colors`}
+                >
                   <div className={`flex max-w-[80%] ${isCurrentUser ? "flex-row-reverse" : "flex-row"}`}>
                     {showAvatar && !isCurrentUser && (
                       <Avatar className="h-8 w-8 mr-2">
@@ -349,12 +384,20 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
                     <div className={`${!showAvatar && !isCurrentUser ? "ml-10" : ""}`}>
                       <div
-                        className={`rounded-2xl px-4 py-2 group ${
+                        className={`rounded-2xl px-4 py-2 group transition-colors ${
                           isCurrentUser
                             ? "bg-blue-500 text-white rounded-br-md"
                             : "bg-gray-100 text-gray-800 rounded-bl-md"
                         } ${isLastInGroup ? "" : "mb-1"}`}
                       >
+                        {/* Zobrazení replied zprávy */}
+                        {message.reply_to && (
+                          <RepliedMessage
+                            repliedMessage={message.reply_to}
+                            onClick={() => scrollToMessage(message.reply_to!.id)}
+                          />
+                        )}
+
                         {isEditing ? (
                           <div className="flex flex-col space-y-2">
                             <Input
@@ -397,43 +440,58 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                               />
                             )}
 
-                            {isCurrentUser && (
-                              <div className="flex items-center justify-end mt-1">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 w-5 p-0 text-blue-100 hover:text-white"
-                                    >
-                                      <MoreVertical className="h-3 w-3" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => startEditMessage(message)}>
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Upravit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => openDeleteDialog(message.id)}>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Smazat
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                            <div className="flex items-center justify-between mt-1">
+                              {/* Reakce na zprávy */}
+                              <div className="flex-1">
+                                <MessageReactions
+                                  messageId={message.id}
+                                  reactions={message.reactions || []}
+                                  currentUserId={user?.id || ""}
+                                  onAddReaction={handleAddReaction}
+                                  onRemoveReaction={handleRemoveReaction}
+                                />
                               </div>
-                            )}
+
+                              {/* Tlačítka pro akce */}
+                              <div className="flex items-center space-x-1">
+                                {/* Reply tlačítko pro všechny zprávy */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => handleReplyToMessage(message)}
+                                >
+                                  <Reply className="h-3 w-3" />
+                                </Button>
+
+                                {isCurrentUser && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 w-5 p-0 text-blue-100 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <MoreVertical className="h-3 w-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => startEditMessage(message)}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Upravit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openDeleteDialog(message.id)}>
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Smazat
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+                            </div>
                           </>
                         )}
                       </div>
-
-                      {/* Reakce na zprávy */}
-                      <MessageReactions
-                        messageId={message.id}
-                        reactions={message.reactions || []}
-                        currentUserId={user?.id || ""}
-                        onAddReaction={handleAddReaction}
-                        onRemoveReaction={handleRemoveReaction}
-                      />
 
                       {isLastInGroup && (
                         <div className={`flex items-center mt-1 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
@@ -456,6 +514,9 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           </div>
         )}
       </CardContent>
+
+      {/* Reply preview */}
+      <MessageReply replyTo={replyToMessage} onCancelReply={handleCancelReply} />
 
       <MessageInput
         value={newMessage}

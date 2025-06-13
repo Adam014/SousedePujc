@@ -107,6 +107,7 @@ export interface ChatMessage {
   message: string
   is_read: boolean
   is_edited?: boolean
+  reply_to_id?: string
   attachment_url?: string
   attachment_name?: string
   attachment_type?: string
@@ -114,6 +115,7 @@ export interface ChatMessage {
   created_at: string
   updated_at?: string
   sender?: User
+  reply_to?: ChatMessage
 }
 
 export interface MessageReaction {
