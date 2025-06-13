@@ -1,6 +1,7 @@
 import { supabase } from "./supabase"
 import type { User, Item, Category, Booking, Review, Notification, ChatRoom, ChatMessage } from "./types"
-import { filterInappropriateContent } from "./content-filter"
+// Přidání importu pro content filter
+import { filterInappropriateContent, logInappropriateContent, type ContentFilterResult } from "./content-filter"
 
 export const db = {
   // Users
@@ -638,17 +639,22 @@ export const db = {
     return data || []
   },
 
-  async sendChatMessage(messageData: Omit<ChatMessage, "id" | "created_at" | "is_read">): Promise<ChatMessage> {
+  // V sendChatMessage funkci nahradit filtrování:
+  async sendChatMessage(
+    messageData: Omit<ChatMessage, "id" | "created_at" | "is_read">,
+  ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> {
     // Filtrování nevhodného obsahu
-    const filteredMessage = {
+    const filterResult: ContentFilterResult = filterInappropriateContent(messageData.message)
+
+    const filteredMessageData = {
       ...messageData,
-      message: filterInappropriateContent(messageData.message),
+      message: filterResult.filteredText,
       is_read: false,
     }
 
     const { data, error } = await supabase
       .from("chat_messages")
-      .insert([filteredMessage])
+      .insert([filteredMessageData])
       .select(`
         *,
         sender:users(*)
@@ -660,23 +666,42 @@ export const db = {
       throw error
     }
 
+    // Logování nevhodného obsahu pokud bylo filtrováno
+    if (filterResult.wasFiltered) {
+      await logInappropriateContent(
+        messageData.sender_id,
+        filterResult.originalText,
+        filterResult.filteredText,
+        filterResult.filteredWords,
+        "chat_message",
+        data.id,
+      )
+    }
+
     // Aktualizujeme poslední zprávu v místnosti
     await supabase
       .from("chat_rooms")
       .update({
-        last_message: filteredMessage.message,
+        last_message: filteredMessageData.message,
         last_message_time: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", filteredMessage.room_id)
+      .eq("id", filteredMessageData.room_id)
 
-    return data
+    return {
+      message: data,
+      wasFiltered: filterResult.wasFiltered,
+      filteredWords: filterResult.filteredWords,
+    }
   },
 
-  // Vylepšená metoda pro aktualizaci zprávy - nyní vrací aktualizovanou zprávu
-  async updateChatMessage(messageId: string, newText: string): Promise<ChatMessage> {
+  // V updateChatMessage funkci nahradit filtrování:
+  async updateChatMessage(
+    messageId: string,
+    newText: string,
+  ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> {
     // Filtrování nevhodného obsahu
-    const filteredText = filterInappropriateContent(newText)
+    const filterResult: ContentFilterResult = filterInappropriateContent(newText)
 
     try {
       // Nejprve zkontrolujeme, zda zpráva existuje
@@ -695,15 +720,15 @@ export const db = {
       const { data, error } = await supabase
         .from("chat_messages")
         .update({
-          message: filteredText,
+          message: filterResult.filteredText,
           is_edited: true,
           updated_at: new Date().toISOString(),
         })
         .eq("id", messageId)
         .select(`
-          *,
-          sender:users(*)
-        `)
+        *,
+        sender:users(*)
+      `)
         .single()
 
       if (error) {
@@ -711,7 +736,23 @@ export const db = {
         throw error
       }
 
-      return data
+      // Logování nevhodného obsahu pokud bylo filtrováno
+      if (filterResult.wasFiltered) {
+        await logInappropriateContent(
+          existingMessage.sender_id,
+          filterResult.originalText,
+          filterResult.filteredText,
+          filterResult.filteredWords,
+          "chat_message_edit",
+          messageId,
+        )
+      }
+
+      return {
+        message: data,
+        wasFiltered: filterResult.wasFiltered,
+        filteredWords: filterResult.filteredWords,
+      }
     } catch (error) {
       console.error("Error in updateChatMessage:", error)
       throw error
@@ -795,5 +836,14 @@ export const db = {
         },
       )
       .subscribe()
+  },
+
+  // Přidání funkce pro aktualizaci last_seen
+  async updateUserLastSeen(userId: string): Promise<void> {
+    const { error } = await supabase.from("users").update({ last_seen: new Date().toISOString() }).eq("id", userId)
+
+    if (error) {
+      console.error("Error updating user last seen:", error)
+    }
   },
 }

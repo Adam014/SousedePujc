@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card"
 import { MessageSquare, X } from "lucide-react"
 import ChatRoom from "./chat-room"
 import { useRouter } from "next/navigation"
+// Přidat import pro ActivityIndicator
+import ActivityIndicator from "@/components/ui/activity-indicator"
 
 export default function ChatPopup() {
   const { user } = useAuth()
@@ -130,17 +132,24 @@ export default function ChatPopup() {
                     className="p-3 hover:bg-gray-50 cursor-pointer border-b"
                     onClick={() => openChat(room.id)}
                   >
+                    {/* V části kde se renderuje seznam chatů, aktualizovat zobrazení uživatele: */}
                     <div className="flex items-center">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={otherUser?.avatar_url || "/placeholder-user.jpg"}
-                          alt={otherUser?.name || ""}
-                        />
-                        <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage
+                            src={otherUser?.avatar_url || "/placeholder-user.jpg"}
+                            alt={otherUser?.name || ""}
+                          />
+                          <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <div className="absolute -bottom-1 -right-1">
+                          <ActivityIndicator lastSeen={otherUser?.last_seen} size="sm" />
+                        </div>
+                      </div>
                       <div className="ml-3 flex-1 overflow-hidden">
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                           <p className="font-medium text-sm truncate">{otherUser?.name || "Neznámý uživatel"}</p>
+                          <ActivityIndicator lastSeen={otherUser?.last_seen} showText size="sm" />
                         </div>
                         <p className="text-xs text-gray-500 truncate">{room.last_message || "Žádné zprávy"}</p>
                       </div>

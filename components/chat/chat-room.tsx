@@ -1,18 +1,16 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
-import { filterInappropriateContent } from "@/lib/content-filter"
+import { useSoundNotifications } from "@/hooks/use-sound-notifications"
 import type { ChatRoom as ChatRoomType, ChatMessage, User } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { ArrowLeft, Send, MoreVertical, Edit, Trash2, Check, X } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { ArrowLeft, MoreVertical, Edit, Trash2, Check, X } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import type { RealtimeChannel } from "@supabase/supabase-js"
@@ -27,6 +25,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import MessageInput from "./message-input"
+import ContentWarning from "./content-warning"
+import ActivityIndicator from "@/components/ui/activity-indicator"
+import { Input } from "@/components/ui/input"
 
 interface ChatRoomProps {
   roomId: string
@@ -37,6 +39,8 @@ interface ChatRoomProps {
 export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const { playMessageSound } = useSoundNotifications()
+
   const [room, setRoom] = useState<ChatRoomType | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -46,6 +50,8 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const [editedMessageText, setEditedMessageText] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null)
+  const [showContentWarning, setShowContentWarning] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const subscriptionRef = useRef<RealtimeChannel | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -75,6 +81,9 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
         // Označit zprávy jako přečtené
         await db.markChatMessagesAsRead(roomId, user.id)
+
+        // Aktualizovat last_seen
+        await db.updateUserLastSeen(user.id)
       } catch (error) {
         console.error("Error loading chat room data:", error)
       } finally {
@@ -96,9 +105,10 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
         // Nová zpráva
         const newMessage = newRecord as ChatMessage
 
-        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
+        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou a přehrajeme zvuk
         if (newMessage.sender_id !== user.id) {
           await db.markChatMessagesAsRead(roomId, user.id)
+          playMessageSound()
         }
 
         // Získáme kompletní data odesílatele
@@ -133,7 +143,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
         subscriptionRef.current.unsubscribe()
       }
     }
-  }, [roomId, user])
+  }, [roomId, user, playMessageSound])
 
   // Automatické scrollování na konec zpráv
   useEffect(() => {
@@ -155,16 +165,13 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     try {
       setSending(true)
 
-      // Filtrování nevhodného obsahu pro optimistickou aktualizaci
-      const filteredMessage = filterInappropriateContent(newMessage.trim())
-
       // Optimistické UI aktualizace - přidáme zprávu okamžitě
       const optimisticId = `temp-${Date.now()}`
       const optimisticMessage: ChatMessage = {
         id: optimisticId,
         room_id: roomId,
         sender_id: user.id,
-        message: filteredMessage,
+        message: newMessage.trim(),
         is_read: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -176,14 +183,19 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       setNewMessage("")
 
       // Skutečné odeslání zprávy
-      const sentMessage = await db.sendChatMessage({
+      const result = await db.sendChatMessage({
         room_id: roomId,
         sender_id: user.id,
         message: newMessage.trim(),
       })
 
+      // Zobrazit varování pokud byl obsah filtrován
+      if (result.wasFiltered) {
+        setShowContentWarning(true)
+      }
+
       // Nahradíme optimistickou zprávu skutečnou
-      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? sentMessage : msg)))
+      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? result.message : msg)))
     } catch (error) {
       console.error("Error sending message:", error)
       // Odstraníme optimistickou zprávu v případě chyby
@@ -210,7 +222,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           msg.id === editingMessageId
             ? {
                 ...msg,
-                message: filterInappropriateContent(editedMessageText),
+                message: editedMessageText,
                 is_edited: true,
                 updated_at: new Date().toISOString(),
               }
@@ -219,10 +231,15 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       )
 
       // Skutečná aktualizace v databázi
-      const updatedMessage = await db.updateChatMessage(editingMessageId, editedMessageText)
+      const result = await db.updateChatMessage(editingMessageId, editedMessageText)
+
+      // Zobrazit varování pokud byl obsah filtrován
+      if (result.wasFiltered) {
+        setShowContentWarning(true)
+      }
 
       // Aktualizace zprávy v seznamu s daty z databáze
-      setMessages((prev) => prev.map((msg) => (msg.id === editingMessageId ? updatedMessage : msg)))
+      setMessages((prev) => prev.map((msg) => (msg.id === editingMessageId ? result.message : msg)))
     } catch (error) {
       console.error("Error updating message:", error)
       // V případě chyby načteme zprávy znovu
@@ -296,29 +313,42 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const otherUser = getOtherUser()
 
   return (
-    <Card className={`flex flex-col ${isPopup ? "h-[400px] w-[350px] shadow-lg" : "h-[calc(100vh-200px)]"}`}>
-      <CardHeader className="border-b py-3">
+    <Card className={`flex flex-col relative ${isPopup ? "h-[500px] w-[400px] shadow-xl" : "h-[calc(100vh-200px)]"}`}>
+      <ContentWarning show={showContentWarning} onClose={() => setShowContentWarning(false)} />
+
+      <CardHeader className="border-b py-4 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="flex items-center">
           {!isPopup && (
-            <Button variant="ghost" size="icon" onClick={() => router.push("/messages")} className="mr-2">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/messages")} className="mr-3">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
           {isPopup && onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose} className="mr-2">
+            <Button variant="ghost" size="icon" onClick={onClose} className="mr-3">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
-            <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
-          </Avatar>
+
+          <div className="relative">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
+              <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+            </Avatar>
+            <div className="absolute -bottom-1 -right-1">
+              <ActivityIndicator lastSeen={otherUser?.last_seen} size="sm" />
+            </div>
+          </div>
+
           <div className="ml-3 flex-1">
-            <CardTitle className="text-sm">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
-            <CardDescription className="text-xs truncate">
+            <CardTitle className="text-base font-semibold">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
+            <CardDescription className="text-sm truncate">
               {room.item?.title || "Předmět není k dispozici"}
             </CardDescription>
+            <div className="mt-1">
+              <ActivityIndicator lastSeen={otherUser?.last_seen} showText size="sm" />
+            </div>
           </div>
+
           {isPopup && onClose && (
             <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
               ×
@@ -326,105 +356,131 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-3 space-y-3">
+
+      <CardContent className="flex-1 overflow-y-auto p-0">
         {messages.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500 text-sm">Zatím zde nejsou žádné zprávy. Začněte konverzaci!</p>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <span className="text-2xl">💬</span>
+            </div>
+            <p className="text-gray-500 text-sm">Zatím zde nejsou žádné zprávy.</p>
+            <p className="text-gray-400 text-xs mt-1">Začněte konverzaci!</p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isCurrentUser = message.sender_id === user?.id
-            const isEditing = message.id === editingMessageId
+          <div className="p-4 space-y-4">
+            {messages.map((message, index) => {
+              const isCurrentUser = message.sender_id === user?.id
+              const isEditing = message.id === editingMessageId
+              const showAvatar = index === 0 || messages[index - 1].sender_id !== message.sender_id
+              const isLastInGroup = index === messages.length - 1 || messages[index + 1].sender_id !== message.sender_id
 
-            return (
-              <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[70%] rounded-lg p-3 ${
-                    isCurrentUser
-                      ? "bg-blue-500 text-white rounded-br-none"
-                      : "bg-gray-100 text-gray-800 rounded-bl-none"
-                  }`}
-                >
-                  {isEditing ? (
-                    <div className="flex flex-col space-y-2">
-                      <Input
-                        ref={inputRef}
-                        value={editedMessageText}
-                        onChange={(e) => setEditedMessageText(e.target.value)}
-                        className="text-black text-sm"
-                      />
-                      <div className="flex justify-end space-x-2">
-                        <Button size="sm" variant="ghost" onClick={cancelEditMessage} className="h-6 px-2 text-xs">
-                          <X className="h-3 w-3 mr-1" />
-                          Zrušit
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={saveEditedMessage}
-                          className="h-6 px-2 text-xs"
-                          disabled={!editedMessageText.trim()}
-                        >
-                          <Check className="h-3 w-3 mr-1" />
-                          Uložit
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm">{message.message}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className={`text-xs ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}>
-                          {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
-                          {message.is_edited && " (upraveno)"}
-                        </p>
+              return (
+                <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                  <div className={`flex max-w-[80%] ${isCurrentUser ? "flex-row-reverse" : "flex-row"}`}>
+                    {showAvatar && !isCurrentUser && (
+                      <Avatar className="h-8 w-8 mr-2">
+                        <AvatarImage
+                          src={message.sender?.avatar_url || "/placeholder-user.jpg"}
+                          alt={message.sender?.name || ""}
+                        />
+                        <AvatarFallback>{message.sender?.name?.charAt(0) || "?"}</AvatarFallback>
+                      </Avatar>
+                    )}
 
-                        {isCurrentUser && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                    <div className={`${!showAvatar && !isCurrentUser ? "ml-10" : ""}`}>
+                      <div
+                        className={`rounded-2xl px-4 py-2 ${
+                          isCurrentUser
+                            ? "bg-blue-500 text-white rounded-br-md"
+                            : "bg-gray-100 text-gray-800 rounded-bl-md"
+                        } ${isLastInGroup ? "" : "mb-1"}`}
+                      >
+                        {isEditing ? (
+                          <div className="flex flex-col space-y-2">
+                            <Input
+                              ref={inputRef}
+                              value={editedMessageText}
+                              onChange={(e) => setEditedMessageText(e.target.value)}
+                              className="text-black text-sm border-0 bg-white"
+                            />
+                            <div className="flex justify-end space-x-2">
                               <Button
-                                variant="ghost"
                                 size="sm"
-                                className={`h-6 w-6 p-0 ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}
+                                variant="ghost"
+                                onClick={cancelEditMessage}
+                                className="h-6 px-2 text-xs"
                               >
-                                <MoreVertical className="h-3 w-3" />
+                                <X className="h-3 w-3 mr-1" />
+                                Zrušit
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => startEditMessage(message)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Upravit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openDeleteDialog(message.id)}>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Smazat
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                              <Button
+                                size="sm"
+                                onClick={saveEditedMessage}
+                                className="h-6 px-2 text-xs"
+                                disabled={!editedMessageText.trim()}
+                              >
+                                <Check className="h-3 w-3 mr-1" />
+                                Uložit
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-sm leading-relaxed">{message.message}</p>
+                            {isCurrentUser && (
+                              <div className="flex items-center justify-end mt-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 w-5 p-0 text-blue-100 hover:text-white opacity-0 group-hover:opacity-100"
+                                    >
+                                      <MoreVertical className="h-3 w-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => startEditMessage(message)}>
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Upravit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openDeleteDialog(message.id)}>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Smazat
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
-                    </>
-                  )}
+
+                      {isLastInGroup && (
+                        <div className={`flex items-center mt-1 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                          <p className="text-xs text-gray-500">
+                            {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
+                            {message.is_edited && " • upraveno"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )
-          })
+              )
+            })}
+            <div ref={messagesEndRef} />
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </CardContent>
-      <CardFooter className="border-t p-2">
-        <form onSubmit={handleSendMessage} className="flex items-center w-full">
-          <Input
-            className="flex-1 mr-2"
-            placeholder="Zadejte zprávu..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            disabled={sending}
-          />
-          <Button type="submit" disabled={sending || !newMessage.trim()} size="sm">
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-      </CardFooter>
+
+      <MessageInput
+        value={newMessage}
+        onChange={setNewMessage}
+        onSubmit={handleSendMessage}
+        disabled={sending}
+        placeholder="Zadejte zprávu..."
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
