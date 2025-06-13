@@ -11,10 +11,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { ArrowLeft, Send } from "lucide-react"
+import { ArrowLeft, Send, MoreVertical, Edit, Trash2, Check, X } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import type { RealtimeChannel } from "@supabase/supabase-js"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ChatRoomProps {
   roomId: string
@@ -30,8 +41,13 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editedMessageText, setEditedMessageText] = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [messageToDelete, setMessageToDelete] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const subscriptionRef = useRef<RealtimeChannel | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Funkce pro získání druhého uživatele v konverzaci
   const getOtherUser = (): User | null => {
@@ -72,15 +88,30 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   useEffect(() => {
     if (!user || !roomId) return
 
-    const subscription = db.subscribeToMessages(roomId, async (newMessage) => {
-      // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
-      if (newMessage.sender_id !== user.id) {
-        await db.markChatMessagesAsRead(roomId, user.id)
-      }
+    const subscription = db.subscribeToMessages(roomId, async (payload) => {
+      const { eventType, new: newRecord, old: oldRecord } = payload
 
-      // Získáme kompletní data odesílatele
-      const sender = await db.getUserById(newMessage.sender_id)
-      setMessages((prev) => [...prev, { ...newMessage, sender }])
+      if (eventType === "INSERT") {
+        // Nová zpráva
+        const newMessage = newRecord as ChatMessage
+
+        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
+        if (newMessage.sender_id !== user.id) {
+          await db.markChatMessagesAsRead(roomId, user.id)
+        }
+
+        // Získáme kompletní data odesílatele
+        const sender = await db.getUserById(newMessage.sender_id)
+        setMessages((prev) => [...prev, { ...newMessage, sender }])
+      } else if (eventType === "UPDATE") {
+        // Aktualizace zprávy
+        const updatedMessage = newRecord as ChatMessage
+        setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)))
+      } else if (eventType === "DELETE") {
+        // Smazání zprávy
+        const deletedMessageId = oldRecord.id
+        setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
+      }
     })
 
     subscriptionRef.current = subscription
@@ -97,6 +128,13 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // Zaměření na input při editaci
+  useEffect(() => {
+    if (editingMessageId && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [editingMessageId])
+
   // Odeslání nové zprávy
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,16 +142,100 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
     try {
       setSending(true)
+
+      // Optimistické UI aktualizace - přidáme zprávu okamžitě
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        room_id: roomId,
+        sender_id: user.id,
+        message: newMessage.trim(),
+        is_read: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        sender: user,
+        is_edited: false,
+        is_deleted: false,
+      }
+
+      setMessages((prev) => [...prev, optimisticMessage])
+      setNewMessage("")
+
+      // Skutečné odeslání zprávy
       await db.sendChatMessage({
         room_id: roomId,
         sender_id: user.id,
         message: newMessage.trim(),
       })
-      setNewMessage("")
     } catch (error) {
       console.error("Error sending message:", error)
+      // Odstraníme optimistickou zprávu v případě chyby
+      setMessages((prev) => prev.filter((msg) => msg.id !== `temp-${Date.now()}`))
     } finally {
       setSending(false)
+    }
+  }
+
+  // Zahájení editace zprávy
+  const startEditMessage = (message: ChatMessage) => {
+    setEditingMessageId(message.id)
+    setEditedMessageText(message.message)
+  }
+
+  // Uložení editované zprávy
+  const saveEditedMessage = async () => {
+    if (!editingMessageId || !editedMessageText.trim()) return
+
+    try {
+      // Optimistická aktualizace UI
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === editingMessageId
+            ? { ...msg, message: editedMessageText, is_edited: true, updated_at: new Date().toISOString() }
+            : msg,
+        ),
+      )
+
+      // Skutečná aktualizace v databázi
+      await db.updateChatMessage(editingMessageId, editedMessageText)
+    } catch (error) {
+      console.error("Error updating message:", error)
+    } finally {
+      setEditingMessageId(null)
+      setEditedMessageText("")
+    }
+  }
+
+  // Zrušení editace zprávy
+  const cancelEditMessage = () => {
+    setEditingMessageId(null)
+    setEditedMessageText("")
+  }
+
+  // Otevření dialogu pro smazání zprávy
+  const openDeleteDialog = (messageId: string) => {
+    setMessageToDelete(messageId)
+    setDeleteDialogOpen(true)
+  }
+
+  // Smazání zprávy
+  const deleteMessage = async () => {
+    if (!messageToDelete) return
+
+    try {
+      // Optimistická aktualizace UI
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageToDelete ? { ...msg, message: "Tato zpráva byla smazána", is_deleted: true } : msg,
+        ),
+      )
+
+      // Skutečné smazání v databázi
+      await db.deleteChatMessage(messageToDelete)
+    } catch (error) {
+      console.error("Error deleting message:", error)
+    } finally {
+      setMessageToDelete(null)
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -184,6 +306,8 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
         ) : (
           messages.map((message) => {
             const isCurrentUser = message.sender_id === user?.id
+            const isEditing = message.id === editingMessageId
+
             return (
               <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
                 <div
@@ -191,12 +315,67 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                     isCurrentUser
                       ? "bg-blue-500 text-white rounded-br-none"
                       : "bg-gray-100 text-gray-800 rounded-bl-none"
-                  }`}
+                  } ${message.is_deleted ? "opacity-70" : ""}`}
                 >
-                  <p className="text-sm">{message.message}</p>
-                  <p className={`text-xs mt-1 ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}>
-                    {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
-                  </p>
+                  {isEditing ? (
+                    <div className="flex flex-col space-y-2">
+                      <Input
+                        ref={inputRef}
+                        value={editedMessageText}
+                        onChange={(e) => setEditedMessageText(e.target.value)}
+                        className="text-black text-sm"
+                      />
+                      <div className="flex justify-end space-x-2">
+                        <Button size="sm" variant="ghost" onClick={cancelEditMessage} className="h-6 px-2 text-xs">
+                          <X className="h-3 w-3 mr-1" />
+                          Zrušit
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={saveEditedMessage}
+                          className="h-6 px-2 text-xs"
+                          disabled={!editedMessageText.trim()}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Uložit
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm">{message.message}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className={`text-xs ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}>
+                          {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
+                          {message.is_edited && !message.is_deleted && " (upraveno)"}
+                        </p>
+
+                        {isCurrentUser && !message.is_deleted && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-6 w-6 p-0 ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}
+                              >
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => startEditMessage(message)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Upravit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openDeleteDialog(message.id)}>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Smazat
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )
@@ -218,6 +397,19 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           </Button>
         </form>
       </CardFooter>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Smazat zprávu</AlertDialogTitle>
+            <AlertDialogDescription>Opravdu chcete smazat tuto zprávu? Tato akce je nevratná.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Zrušit</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteMessage}>Smazat</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

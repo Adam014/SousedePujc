@@ -5,20 +5,9 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import type { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { MapPin, Navigation, Star } from 'lucide-react'
+import { MapPin, Navigation, Star } from "lucide-react"
 import Link from "next/link"
 import L from "leaflet"
-
-// Oprava ikon Leaflet
-const fixLeafletIcons = () => {
-  delete (L.Icon.Default.prototype as any)._getIconUrl
-
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-    iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-  })
-}
 
 // Funkce pro získání ikony podle kategorie
 const getCategoryIcon = (categoryId: string) => {
@@ -41,6 +30,14 @@ interface ItemMapProps {
 function LocationMarker() {
   const [position, setPosition] = useState<[number, number] | null>(null)
   const map = useMap()
+  const userIcon = useMemo(() => {
+    return L.icon({
+      iconUrl: "/user-location-marker.png",
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32],
+    })
+  }, [])
 
   useEffect(() => {
     map.locate().on("locationfound", (e) => {
@@ -50,18 +47,7 @@ function LocationMarker() {
   }, [map])
 
   return position === null ? null : (
-    <Marker
-      position={position}
-      icon={
-        new L.Icon({
-          iconUrl: "/user-location-marker.png",
-          iconSize: [40, 40],
-          iconAnchor: [20, 40],
-          popupAnchor: [0, -40],
-          className: "user-location-marker", // Přidáme třídu pro lepší stylování
-        })
-      }
-    >
+    <Marker position={position} icon={userIcon}>
       <Popup>
         <div className="text-center">
           <strong>Vaše poloha</strong>
@@ -131,25 +117,36 @@ export default function ItemMap({ items }: ItemMapProps) {
     const icons: Record<string, L.Icon> = {}
 
     // Předpřipravíme ikony pro všechny kategorie
-    items.forEach((item) => {
-      if (!item.category_id) return
+    for (let i = 1; i <= 5; i++) {
+      const categoryId = i.toString()
+      icons[categoryId] = L.icon({
+        iconUrl: getCategoryIcon(categoryId),
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32],
+      })
+    }
 
-      if (!icons[item.category_id]) {
-        icons[item.category_id] = new L.Icon({
-          iconUrl: getCategoryIcon(item.category_id),
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
-          popupAnchor: [0, -32],
-          className: "category-marker", // Přidáme třídu pro lepší stylování
-        })
-      }
+    // Přidáme výchozí ikonu
+    icons["default"] = L.icon({
+      iconUrl: "/category-markers/other.png",
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32],
     })
 
     return icons
-  }, [items])
+  }, [])
 
   useEffect(() => {
-    fixLeafletIcons()
+    // Oprava problému s ikonami v Leaflet
+    delete (L.Icon.Default.prototype as any)._getIconUrl
+
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+      iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    })
 
     const processItems = async () => {
       setIsLoading(true)
@@ -188,23 +185,6 @@ export default function ItemMap({ items }: ItemMapProps) {
 
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg border border-gray-200">
-      <style jsx global>{`
-        /* Zajistíme, že ikony markerů budou viditelné */
-        .leaflet-marker-icon {
-          display: block !important;
-          visibility: visible !important;
-        }
-        
-        /* Styly pro markery kategorií */
-        .category-marker {
-          filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
-        }
-        
-        /* Styly pro marker uživatelské polohy */
-        .user-location-marker {
-          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
-        }
-      `}</style>
       <MapContainer
         center={mapCenter}
         zoom={12}
@@ -213,7 +193,6 @@ export default function ItemMap({ items }: ItemMapProps) {
           mapRef.current = map
         }}
       >
-        {/* Základní mapa */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -221,26 +200,13 @@ export default function ItemMap({ items }: ItemMapProps) {
 
         {itemsWithCoords.map((item) =>
           item.coords ? (
-            <Marker
-              key={item.id}
-              position={item.coords}
-              icon={
-                categoryIcons[item.category_id] ||
-                new L.Icon({
-                  iconUrl: "/category-markers/other.png",
-                  iconSize: [32, 32],
-                  iconAnchor: [16, 32],
-                  popupAnchor: [0, -32],
-                  className: "category-marker",
-                })
-              }
-            >
+            <Marker key={item.id} position={item.coords} icon={categoryIcons[item.category_id || "default"]}>
               <Popup>
                 <div className="p-2 min-w-[200px]">
                   <div className="flex items-center mb-3">
                     <div className="w-16 h-16 mr-3 overflow-hidden rounded">
                       <img
-                        src={item.images[0] || "/placeholder.svg?height=64&width=64"}
+                        src={item.images?.[0] || "/placeholder.svg?height=64&width=64"}
                         alt={item.title}
                         className="w-full h-full object-cover"
                       />
