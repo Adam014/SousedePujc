@@ -17,8 +17,13 @@ interface BookingCalendarProps {
   onSelect: (range: { from: Date | undefined; to: Date | undefined }) => void
 }
 
+interface BookedDate {
+  date: Date
+  status: "pending" | "confirmed" | "active" | "completed" | "cancelled"
+}
+
 export default function BookingCalendar({ itemId, selectedDates, onSelect }: BookingCalendarProps) {
-  const [bookedDates, setBookedDates] = useState<Date[]>([])
+  const [bookedDates, setBookedDates] = useState<BookedDate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,22 +32,27 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
       try {
         setLoading(true)
         setError(null)
-        const bookings = await db.getBookingsForItem(itemId)
-        const dates: Date[] = []
+        // Načteme všechny rezervace pro daný předmět, včetně čekajících
+        const bookings = await db.getAllBookingsForItem(itemId)
+        const dates: BookedDate[] = []
 
         bookings.forEach((booking) => {
-          if (booking.status === "confirmed" || booking.status === "active") {
-            const start = new Date(booking.start_date)
-            const end = new Date(booking.end_date)
+          // Přeskočíme zrušené rezervace
+          if (booking.status === "cancelled") return
 
-            // Zajistíme, že datum je správně nastaveno (bez časové složky)
-            start.setHours(0, 0, 0, 0)
-            end.setHours(0, 0, 0, 0)
+          const start = new Date(booking.start_date)
+          const end = new Date(booking.end_date)
 
-            // Přidáme všechny dny mezi začátkem a koncem rezervace
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-              dates.push(new Date(d))
-            }
+          // Zajistíme, že datum je správně nastaveno (bez časové složky)
+          start.setHours(0, 0, 0, 0)
+          end.setHours(0, 0, 0, 0)
+
+          // Přidáme všechny dny mezi začátkem a koncem rezervace
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            dates.push({
+              date: new Date(d),
+              status: booking.status,
+            })
           }
         })
 
@@ -61,9 +71,20 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
   const isDateBooked = (date: Date) => {
     return bookedDates.some(
       (bookedDate) =>
-        bookedDate.getFullYear() === date.getFullYear() &&
-        bookedDate.getMonth() === date.getMonth() &&
-        bookedDate.getDate() === date.getDate(),
+        bookedDate.date.getFullYear() === date.getFullYear() &&
+        bookedDate.date.getMonth() === date.getMonth() &&
+        bookedDate.date.getDate() === date.getDate() &&
+        (bookedDate.status === "confirmed" || bookedDate.status === "active" || bookedDate.status === "completed"),
+    )
+  }
+
+  const isDatePending = (date: Date) => {
+    return bookedDates.some(
+      (bookedDate) =>
+        bookedDate.date.getFullYear() === date.getFullYear() &&
+        bookedDate.date.getMonth() === date.getMonth() &&
+        bookedDate.date.getDate() === date.getDate() &&
+        bookedDate.status === "pending",
     )
   }
 
@@ -71,6 +92,16 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return date < today || isDateBooked(date)
+  }
+
+  const getDateClassNames = (date: Date) => {
+    if (isDateBooked(date)) {
+      return "bg-red-100 text-red-800 line-through"
+    }
+    if (isDatePending(date)) {
+      return "bg-yellow-100 text-yellow-800"
+    }
+    return ""
   }
 
   if (loading) {
@@ -140,6 +171,17 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
             opacity: 0.5;
             cursor: not-allowed;
           }
+          
+          .date-booked {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            text-decoration: line-through;
+          }
+          
+          .date-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+          }
         `}</style>
         <Calendar
           mode="range"
@@ -148,13 +190,20 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
           disabled={isDateDisabled}
           className={cn("rounded-md border p-3")}
           modifiers={{
-            booked: bookedDates,
+            booked: bookedDates
+              .filter((d) => d.status === "confirmed" || d.status === "active" || d.status === "completed")
+              .map((d) => d.date),
+            pending: bookedDates.filter((d) => d.status === "pending").map((d) => d.date),
           }}
           modifiersStyles={{
             booked: {
-              backgroundColor: "#fef2f2",
-              color: "#dc2626",
+              backgroundColor: "#fee2e2",
+              color: "#b91c1c",
               textDecoration: "line-through",
+            },
+            pending: {
+              backgroundColor: "#fef3c7",
+              color: "#92400e",
             },
           }}
           fromDate={new Date()}
@@ -183,8 +232,15 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
           }}
         />
       </div>
-      <div className="mt-2 text-xs text-gray-500">
-        <p>• Červené dny jsou již rezervované</p>
+      <div className="mt-2 text-xs text-gray-500 space-y-1">
+        <div className="flex items-center">
+          <div className="w-3 h-3 bg-red-100 rounded-full mr-2"></div>
+          <p>Červené dny jsou již potvrzené rezervace</p>
+        </div>
+        <div className="flex items-center">
+          <div className="w-3 h-3 bg-yellow-100 rounded-full mr-2"></div>
+          <p>Žluté dny jsou čekající rezervace</p>
+        </div>
         <p>• Vyberte dostupné dny pro vaši rezervaci</p>
       </div>
     </div>

@@ -4,9 +4,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin } from "lucide-react"
+import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin, Star } from "lucide-react"
 import type { Booking } from "@/lib/types"
 import { db } from "@/lib/database"
+import { useState } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface BookingCardProps {
   booking: Booking
@@ -31,6 +43,12 @@ const statusColors = {
 
 export default function BookingCard({ booking, isOwner }: BookingCardProps) {
   const otherUser = isOwner ? booking.borrower : booking.item?.owner
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState("")
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
 
   const handleConfirmBooking = async () => {
     try {
@@ -76,6 +94,63 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
       console.error("Error cancelling booking:", error)
     }
   }
+
+  const handleDeleteBooking = async () => {
+    try {
+      setIsDeleting(true)
+      await db.deleteBooking(booking.id)
+
+      // Vytvoření notifikace pro majitele
+      await db.createNotification({
+        user_id: booking.item?.owner_id || "",
+        title: "Rezervace zrušena",
+        message: `Rezervace předmětu "${booking.item?.title}" byla zrušena zájemcem.`,
+        type: "booking_cancelled",
+        is_read: false,
+      })
+
+      // Refresh stránky
+      window.location.reload()
+    } catch (error) {
+      console.error("Error deleting booking:", error)
+      setIsDeleting(false)
+    }
+  }
+
+  const handleSubmitReview = async () => {
+    if (!booking.item?.owner_id) return
+
+    try {
+      setIsSubmittingReview(true)
+
+      await db.createReview({
+        booking_id: booking.id,
+        reviewer_id: booking.borrower_id,
+        reviewed_id: booking.item.owner_id,
+        rating,
+        comment,
+        review_type: "lender",
+      })
+
+      // Vytvoření notifikace pro hodnoceného uživatele
+      await db.createNotification({
+        user_id: booking.item.owner_id,
+        title: "Nové hodnocení",
+        message: `Uživatel vám zanechal nové hodnocení.`,
+        type: "new_review",
+        is_read: false,
+      })
+
+      setReviewDialogOpen(false)
+      window.location.reload()
+    } catch (error) {
+      console.error("Error submitting review:", error)
+      setIsSubmittingReview(false)
+    }
+  }
+
+  // Určíme, zda můžeme zobrazit kontaktní informace
+  const canShowContact = booking.status === "confirmed" || booking.status === "active" || booking.status === "completed"
 
   return (
     <Card className="shadow-soft hover:shadow-elegant transition-all duration-300 border-0 bg-white">
@@ -136,24 +211,26 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
 
           {/* Pravá část - Akce */}
           <div className="flex flex-col space-y-2 lg:w-48">
-            {/* Kontaktní informace */}
-            <div className="flex space-x-2">
-              {otherUser?.phone && (
+            {/* Kontaktní informace - zobrazit pouze pokud je rezervace potvrzená */}
+            {canShowContact && otherUser && (
+              <div className="flex space-x-2">
+                {otherUser.phone && (
+                  <Button size="sm" variant="outline" className="flex-1">
+                    <Phone className="h-3 w-3 mr-1" />
+                    <a href={`tel:${otherUser.phone}`} className="text-xs">
+                      Zavolat
+                    </a>
+                  </Button>
+                )}
+
                 <Button size="sm" variant="outline" className="flex-1">
-                  <Phone className="h-3 w-3 mr-1" />
-                  <a href={`tel:${otherUser.phone}`} className="text-xs">
-                    Zavolat
+                  <Mail className="h-3 w-3 mr-1" />
+                  <a href={`mailto:${otherUser?.email}`} className="text-xs">
+                    E-mail
                   </a>
                 </Button>
-              )}
-
-              <Button size="sm" variant="outline" className="flex-1">
-                <Mail className="h-3 w-3 mr-1" />
-                <a href={`mailto:${otherUser?.email}`} className="text-xs">
-                  E-mail
-                </a>
-              </Button>
-            </div>
+              </div>
+            )}
 
             {/* Akční tlačítka pro majitele */}
             {isOwner && booking.status === "pending" && (
@@ -180,7 +257,7 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
             )}
 
             {/* Tlačítko pro zrušení potvrzené rezervace */}
-            {booking.status === "confirmed" && (
+            {isOwner && booking.status === "confirmed" && (
               <Button
                 size="sm"
                 variant="outline"
@@ -190,6 +267,85 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
                 <X className="h-3 w-3 mr-1" />
                 Zrušit rezervaci
               </Button>
+            )}
+
+            {/* Tlačítko pro zrušení vlastní rezervace (pro zájemce) */}
+            {!isOwner && booking.status === "pending" && (
+              <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="w-full border-red-200 text-red-600 hover:bg-red-50">
+                    <X className="h-3 w-3 mr-1" />
+                    Zrušit rezervaci
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Zrušit rezervaci</DialogTitle>
+                  </DialogHeader>
+                  <DialogDescription>
+                    Opravdu chcete zrušit rezervaci předmětu "{booking.item?.title}"? Tato akce je nevratná.
+                  </DialogDescription>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+                      Zpět
+                    </Button>
+                    <Button variant="destructive" onClick={handleDeleteBooking} disabled={isDeleting}>
+                      {isDeleting ? "Rušení..." : "Zrušit rezervaci"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Tlačítko pro hodnocení majitele (pouze pro potvrzené rezervace) */}
+            {!isOwner && booking.status === "confirmed" && (
+              <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="w-full">
+                    <Star className="h-3 w-3 mr-1" />
+                    Ohodnotit majitele
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Ohodnotit majitele</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label htmlFor="rating">Hodnocení (1-5 hvězdiček)</Label>
+                      <div className="flex items-center space-x-1 mt-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-6 w-6 cursor-pointer ${
+                              star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                            }`}
+                            onClick={() => setRating(star)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="comment">Komentář (volitelné)</Label>
+                      <Textarea
+                        id="comment"
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Napište svůj komentář..."
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>
+                      Zrušit
+                    </Button>
+                    <Button onClick={handleSubmitReview} disabled={isSubmittingReview}>
+                      {isSubmittingReview ? "Odesílání..." : "Odeslat hodnocení"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
 
             {/* Zpráva od žadatele */}

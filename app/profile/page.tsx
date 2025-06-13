@@ -204,8 +204,8 @@ export default function ProfilePage() {
       <Tabs defaultValue={defaultTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="items">Moje předměty</TabsTrigger>
-          <TabsTrigger value="lent-items">Půjčené předměty</TabsTrigger>
-          <TabsTrigger value="bookings">Rezervace</TabsTrigger>
+          <TabsTrigger value="lent-items">Žádosti o zapůjčení</TabsTrigger>
+          <TabsTrigger value="bookings">Moje rezervace</TabsTrigger>
           <TabsTrigger value="reviews">Hodnocení</TabsTrigger>
           <TabsTrigger value="messages">Zprávy</TabsTrigger>
         </TabsList>
@@ -223,7 +223,7 @@ export default function ProfilePage() {
         </TabsContent>
 
         <TabsContent value="lent-items" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Žádosti o půjčení ({ownerBookings.length})</h2>
+          <h2 className="text-2xl font-semibold">Žádosti o zapůjčení mých předmětů ({ownerBookings.length})</h2>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

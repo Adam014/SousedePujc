@@ -11,22 +11,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Trash2, AlertTriangle } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import type { Category, Item } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
 import AddressAutocomplete from "@/components/address/address-autocomplete"
 import ImageUpload from "@/components/items/image-upload"
 import DatabaseError from "@/components/error/database-error"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 
 const conditionOptions = [
   { value: "excellent", label: "Výborný" },
@@ -252,36 +243,8 @@ export default function EditItemPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-2xl">Upravit předmět</CardTitle>
-          <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="destructive" size="sm">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Smazat předmět
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="flex items-center">
-                  <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-                  Smazat předmět
-                </DialogTitle>
-              </DialogHeader>
-              <DialogDescription>
-                Opravdu chcete smazat předmět <strong>{item.title}</strong>? Tato akce je nevratná a smaže všechny
-                související rezervace.
-              </DialogDescription>
-              <DialogFooter className="flex space-x-2 justify-end">
-                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                  Zrušit
-                </Button>
-                <Button variant="destructive" onClick={handleDeleteItem} disabled={deleting}>
-                  {deleting ? "Mazání..." : "Smazat předmět"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </CardHeader>
 
         <CardContent>

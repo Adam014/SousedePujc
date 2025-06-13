@@ -313,6 +313,25 @@ export const db = {
     return data || []
   },
 
+  async getAllBookingsForItem(itemId: string): Promise<Booking[]> {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        item:items!bookings_item_id_fkey(*),
+        borrower:users!bookings_borrower_id_fkey(*)
+      `)
+      .eq("item_id", itemId)
+      .order("start_date", { ascending: true })
+
+    if (error) {
+      console.error("Error fetching all bookings for item:", error)
+      throw error
+    }
+
+    return data || []
+  },
+
   async createBooking(bookingData: Omit<Booking, "id" | "created_at" | "updated_at">): Promise<Booking> {
     const { data, error } = await supabase
       .from("bookings")

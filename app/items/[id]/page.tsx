@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MapPin, Shield, CalendarIcon, MessageSquare, Edit } from "lucide-react"
+import { MapPin, Shield, CalendarIcon, MessageSquare, Edit, Trash2, AlertTriangle } from "lucide-react"
 import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
@@ -18,6 +18,16 @@ import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
 import DatabaseError from "@/components/error/database-error"
 import ImageGallery from "@/components/items/image-gallery"
+import Link from "next/link"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 const conditionLabels = {
   excellent: "Výborný",
@@ -50,6 +60,8 @@ export default function ItemDetailPage() {
   const [error, setError] = useState("")
   const [isNetworkError, setIsNetworkError] = useState(false)
   const [success, setSuccess] = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadItem = async () => {
     try {
@@ -141,6 +153,21 @@ export default function ItemDetailPage() {
     }
   }
 
+  const handleDeleteItem = async () => {
+    if (!user || !item) return
+
+    try {
+      setDeleting(true)
+      await db.deleteItem(item.id)
+      router.push("/profile?tab=items")
+    } catch (error) {
+      console.error("Error deleting item:", error)
+      setError("Došlo k chybě při mazání předmětu")
+      setDeleting(false)
+      setDeleteDialogOpen(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -187,10 +214,40 @@ export default function ItemDetailPage() {
                 <h1 className="text-3xl font-bold text-gray-900">{item.title}</h1>
                 <div className="flex items-center gap-2">
                   {isOwner && (
-                    <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
-                      <Edit className="h-4 w-4 mr-1" />
-                      Upravit
-                    </Button>
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
+                        <Edit className="h-4 w-4 mr-1" />
+                        Upravit
+                      </Button>
+                      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Smazat
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center">
+                              <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                              Smazat předmět
+                            </DialogTitle>
+                          </DialogHeader>
+                          <DialogDescription>
+                            Opravdu chcete smazat předmět <strong>{item.title}</strong>? Tato akce je nevratná a smaže
+                            všechny související rezervace.
+                          </DialogDescription>
+                          <DialogFooter className="flex space-x-2 justify-end">
+                            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                              Zrušit
+                            </Button>
+                            <Button variant="destructive" onClick={handleDeleteItem} disabled={deleting}>
+                              {deleting ? "Mazání..." : "Smazat předmět"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
                   )}
                   <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
                 </div>
@@ -218,22 +275,27 @@ export default function ItemDetailPage() {
             <div>
               <h3 className="text-xl font-semibold mb-4">Majitel</h3>
               <div className="flex items-center space-x-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback>{item.owner?.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h4 className="font-medium text-lg">{item.owner?.name}</h4>
-                  <div className="flex items-center space-x-2">
-                    <RatingDisplay rating={item.owner?.reputation_score || 0} reviewCount={0} size="sm" />
-                    {item.owner?.is_verified && (
-                      <div className="flex items-center text-green-600">
-                        <Shield className="h-4 w-4 mr-1" />
-                        <span className="text-sm">Ověřený</span>
-                      </div>
-                    )}
+                <Link
+                  href={`/users/${item.owner_id}`}
+                  className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                >
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} />
+                    <AvatarFallback>{item.owner?.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h4 className="font-medium text-lg">{item.owner?.name}</h4>
+                    <div className="flex items-center space-x-2">
+                      <RatingDisplay rating={item.owner?.reputation_score || 0} reviewCount={0} size="sm" />
+                      {item.owner?.is_verified && (
+                        <div className="flex items-center text-green-600">
+                          <Shield className="h-4 w-4 mr-1" />
+                          <span className="text-sm">Ověřený</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </Link>
               </div>
             </div>
           </div>
