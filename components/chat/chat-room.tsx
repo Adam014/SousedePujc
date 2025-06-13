@@ -12,13 +12,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { ArrowLeft, Send } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
+import { cs } from "date-fns/locale"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
 interface ChatRoomProps {
   roomId: string
+  isPopup?: boolean
+  onClose?: () => void
 }
 
-export default function ChatRoom({ roomId }: ChatRoomProps) {
+export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomProps) {
   const { user } = useAuth()
   const router = useRouter()
   const [room, setRoom] = useState<ChatRoomType | null>(null)
@@ -44,7 +48,7 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
         setLoading(true)
         const roomData = await db.getChatRoomById(roomId)
         if (!roomData) {
-          router.push("/messages")
+          if (!isPopup) router.push("/messages")
           return
         }
         setRoom(roomData)
@@ -62,7 +66,7 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
     }
 
     loadRoomData()
-  }, [roomId, user, router])
+  }, [roomId, user, router, isPopup])
 
   // Nastavení realtime subscription pro nové zprávy
   useEffect(() => {
@@ -125,9 +129,16 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
     return (
       <div className="text-center py-12">
         <h3 className="text-lg font-medium text-gray-900">Konverzace nenalezena</h3>
-        <Button className="mt-4" onClick={() => router.push("/messages")}>
-          Zpět na seznam konverzací
-        </Button>
+        {!isPopup && (
+          <Button className="mt-4" onClick={() => router.push("/messages")}>
+            Zpět na seznam konverzací
+          </Button>
+        )}
+        {isPopup && onClose && (
+          <Button className="mt-4" onClick={onClose}>
+            Zavřít
+          </Button>
+        )}
       </div>
     )
   }
@@ -135,25 +146,66 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
   const otherUser = getOtherUser()
 
   return (
-    <Card className="h-[calc(100vh-200px)] flex flex-col">
-      <CardHeader className="border-b">
+    <Card className={`flex flex-col ${isPopup ? "h-[400px] w-[350px] shadow-lg" : "h-[calc(100vh-200px)]"}`}>
+      <CardHeader className="border-b py-3">
         <div className="flex items-center">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/messages")} className="mr-2">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <Avatar className="h-10 w-10">
+          {!isPopup && (
+            <Button variant="ghost" size="icon" onClick={() => router.push("/messages")} className="mr-2">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          {isPopup && onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} className="mr-2">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <Avatar className="h-8 w-8">
             <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
             <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
           </Avatar>
-          <div className="ml-3">
-            <CardTitle className="text-base">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
-            <CardDescription className="text-xs">{room.item?.title || "Předmět není k dispozici"}</CardDescription>
+          <div className="ml-3 flex-1">
+            <CardTitle className="text-sm">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
+            <CardDescription className="text-xs truncate">
+              {room.item?.title || "Předmět není k dispozici"}
+            </CardDescription>
           </div>
+          {isPopup && onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
+              ×
+            </Button>
+          )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-4">{/* Zde by měly být zprávy */}</CardContent>
-      <CardFooter className="border-t">
-        <form onSubmit={handleSendMessage} className="flex items-center">
+      <CardContent className="flex-1 overflow-y-auto p-3 space-y-3">
+        {messages.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">Zatím zde nejsou žádné zprávy. Začněte konverzaci!</p>
+          </div>
+        ) : (
+          messages.map((message) => {
+            const isCurrentUser = message.sender_id === user?.id
+            return (
+              <div key={message.id} className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[70%] rounded-lg p-3 ${
+                    isCurrentUser
+                      ? "bg-blue-500 text-white rounded-br-none"
+                      : "bg-gray-100 text-gray-800 rounded-bl-none"
+                  }`}
+                >
+                  <p className="text-sm">{message.message}</p>
+                  <p className={`text-xs mt-1 ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}>
+                    {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
+                  </p>
+                </div>
+              </div>
+            )
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </CardContent>
+      <CardFooter className="border-t p-2">
+        <form onSubmit={handleSendMessage} className="flex items-center w-full">
           <Input
             className="flex-1 mr-2"
             placeholder="Zadejte zprávu..."
@@ -161,8 +213,8 @@ export default function ChatRoom({ roomId }: ChatRoomProps) {
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={sending}
           />
-          <Button type="submit" disabled={sending}>
-            <Send className="h-5 w-5" />
+          <Button type="submit" disabled={sending || !newMessage.trim()} size="sm">
+            <Send className="h-4 w-4" />
           </Button>
         </form>
       </CardFooter>

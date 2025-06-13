@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Star, Shield, Package, Calendar, MessageSquare, MapPin, Mail, Phone } from "lucide-react"
-import type { Item, Booking, Review } from "@/lib/types"
+import type { Item, Booking, Review, ChatRoom } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
 import ItemGrid from "@/components/items/item-grid"
@@ -16,6 +16,7 @@ import Link from "next/link"
 import BookingCard from "@/components/bookings/booking-card"
 import RatingDisplay from "@/components/ui/rating-display"
 import BookingRequestCard from "@/components/bookings/booking-request-card"
+import ChatList from "@/components/chat/chat-list"
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth()
@@ -24,6 +25,7 @@ export default function ProfilePage() {
   const [userBookings, setUserBookings] = useState<Booking[]>([])
   const [userReviews, setUserReviews] = useState<Review[]>([])
   const [ownerBookings, setOwnerBookings] = useState<Booking[]>([])
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -57,6 +59,10 @@ export default function ProfilePage() {
         // Načteme hodnocení uživatele
         const reviews = await db.getReviewsByUser(user.id)
         setUserReviews(reviews)
+
+        // Načteme chat rooms uživatele
+        const rooms = await db.getChatRoomsByUser(user.id)
+        setChatRooms(rooms)
 
         // Načteme rezervace předmětů, které vlastní uživatel
         // Toto jsou rezervace, kde je uživatel majitelem předmětu
@@ -381,17 +387,8 @@ export default function ProfilePage() {
         </TabsContent>
 
         <TabsContent value="messages" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Zprávy</h2>
-
-          <Card>
-            <CardContent className="p-6 text-center">
-              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Systém zpráv bude brzy dostupný.</p>
-              <p className="text-sm text-gray-400 mt-2">
-                Zatím můžete kontaktovat uživatele přes telefon nebo e-mail uvedený v rezervaci.
-              </p>
-            </CardContent>
-          </Card>
+          <h2 className="text-2xl font-semibold">Zprávy ({chatRooms.length})</h2>
+          <ChatList />
         </TabsContent>
       </Tabs>
     </div>

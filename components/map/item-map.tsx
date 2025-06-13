@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import type { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { MapPin, Navigation, Star } from "lucide-react"
+import { MapPin, Navigation, Star } from 'lucide-react'
 import Link from "next/link"
 import L from "leaflet"
 
@@ -58,6 +58,7 @@ function LocationMarker() {
           iconSize: [40, 40],
           iconAnchor: [20, 40],
           popupAnchor: [0, -40],
+          className: "user-location-marker", // Přidáme třídu pro lepší stylování
         })
       }
     >
@@ -136,9 +137,10 @@ export default function ItemMap({ items }: ItemMapProps) {
       if (!icons[item.category_id]) {
         icons[item.category_id] = new L.Icon({
           iconUrl: getCategoryIcon(item.category_id),
-          iconSize: [40, 40],
-          iconAnchor: [20, 40],
-          popupAnchor: [0, -40],
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+          popupAnchor: [0, -32],
+          className: "category-marker", // Přidáme třídu pro lepší stylování
         })
       }
     })
@@ -186,6 +188,23 @@ export default function ItemMap({ items }: ItemMapProps) {
 
   return (
     <div className="h-[600px] w-full rounded-lg overflow-hidden shadow-lg border border-gray-200">
+      <style jsx global>{`
+        /* Zajistíme, že ikony markerů budou viditelné */
+        .leaflet-marker-icon {
+          display: block !important;
+          visibility: visible !important;
+        }
+        
+        /* Styly pro markery kategorií */
+        .category-marker {
+          filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+        }
+        
+        /* Styly pro marker uživatelské polohy */
+        .user-location-marker {
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+        }
+      `}</style>
       <MapContainer
         center={mapCenter}
         zoom={12}
@@ -194,17 +213,10 @@ export default function ItemMap({ items }: ItemMapProps) {
           mapRef.current = map
         }}
       >
-        {/* Satelitní mapa */}
-        <TileLayer
-          attribution='&copy; <a href="https://www.esri.com">Esri</a>'
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        />
-
-        {/* Hybridní vrstva s popisky */}
+        {/* Základní mapa */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner-hybrid/{z}/{x}/{y}{r}.png"
-          opacity={0.7}
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         {itemsWithCoords.map((item) =>
@@ -216,9 +228,10 @@ export default function ItemMap({ items }: ItemMapProps) {
                 categoryIcons[item.category_id] ||
                 new L.Icon({
                   iconUrl: "/category-markers/other.png",
-                  iconSize: [40, 40],
-                  iconAnchor: [20, 40],
-                  popupAnchor: [0, -40],
+                  iconSize: [32, 32],
+                  iconAnchor: [16, 32],
+                  popupAnchor: [0, -32],
+                  className: "category-marker",
                 })
               }
             >

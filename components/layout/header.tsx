@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -10,13 +11,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, User, LogOut, Settings, Package } from "lucide-react"
+import { Plus, User, LogOut, Settings, Package, MessageSquare } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { db } from "@/lib/database"
 import NotificationDropdown from "@/components/notifications/notification-dropdown"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
 
 export default function Header() {
   const { user, logout } = useAuth()
+  const [unreadMessages, setUnreadMessages] = useState(0)
+
+  // Načtení počtu nepřečtených zpráv
+  useEffect(() => {
+    if (!user) return
+
+    const loadUnreadMessages = async () => {
+      try {
+        const count = await db.getUnreadMessageCount(user.id)
+        setUnreadMessages(count)
+      } catch (error) {
+        console.error("Error loading unread messages count:", error)
+      }
+    }
+
+    loadUnreadMessages()
+
+    // Nastavení intervalu pro pravidelnou kontrolu nových zpráv
+    const interval = setInterval(loadUnreadMessages, 30000) // každých 30 sekund
+
+    return () => clearInterval(interval)
+  }, [user])
 
   return (
     <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-soft">
@@ -45,6 +69,17 @@ export default function Header() {
                   <Link href="/items/new">
                     <Plus className="h-4 w-4 mr-2" />
                     Přidat předmět
+                  </Link>
+                </Button>
+
+                <Button asChild variant="ghost" className="relative" aria-label="Zprávy">
+                  <Link href="/messages">
+                    <MessageSquare className="h-5 w-5" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
                   </Link>
                 </Button>
 
@@ -83,6 +118,17 @@ export default function Header() {
                       <Link href="/profile?tab=bookings">
                         <Settings className="mr-2 h-4 w-4" />
                         Moje rezervace
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/messages">
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Zprávy
+                        {unreadMessages > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                            {unreadMessages}
+                          </span>
+                        )}
                       </Link>
                     </DropdownMenuItem>
                     {user.is_admin && (

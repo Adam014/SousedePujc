@@ -28,3 +28,17 @@ CREATE INDEX IF NOT EXISTS idx_chat_rooms_booking_id ON chat_rooms(booking_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_room_id ON chat_messages(room_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_id ON chat_messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_is_read ON chat_messages(is_read);
+
+-- Vytvoření triggeru pro aktualizaci updated_at při změně záznamu
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_chat_rooms_updated_at
+BEFORE UPDATE ON chat_rooms
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
