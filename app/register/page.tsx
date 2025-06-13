@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth"
 import { Package, Mail, CheckCircle, Eye, EyeOff, Lock, User } from "lucide-react"
+import PasswordStrength from "@/components/auth/password-strength"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -210,7 +211,9 @@ export default function RegisterPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-gray-500">Heslo musí obsahovat alespoň 6 znaků</p>
+
+              {/* Indikátor síly hesla */}
+              <PasswordStrength password={formData.password} className="mt-2" />
             </div>
 
             <div className="space-y-2">

@@ -23,6 +23,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Generujeme unikátní ID pro každou instanci prohlížeče
+const generateBrowserId = () => {
+  const existingId = localStorage.getItem("browser_session_id")
+  if (existingId) return existingId
+
+  const newId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+  localStorage.setItem("browser_session_id", newId)
+  return newId
+}
+
+// Unikátní ID pro tuto instanci prohlížeče
+const BROWSER_ID = typeof window !== "undefined" ? generateBrowserId() : ""
+
+// Klíč pro ukládání session do localStorage
+const getSessionStorageKey = () => `supabase_auth_token_${BROWSER_ID}`
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -124,6 +140,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await db.updateUser(userData.id, { is_verified: true })
           userData.is_verified = true
         }
+
+        // Uložíme session token do localStorage s unikátním klíčem pro tuto instanci
+        if (data.session) {
+          const sessionKey = getSessionStorageKey()
+          localStorage.setItem(sessionKey, JSON.stringify(data.session))
+        }
+
         setUser(userData)
         return { success: true }
       }
@@ -138,6 +161,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
+    // Odstraníme session token z localStorage
+    const sessionKey = getSessionStorageKey()
+    localStorage.removeItem(sessionKey)
+
     await supabase.auth.signOut()
     setUser(null)
   }

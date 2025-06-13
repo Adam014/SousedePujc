@@ -1,15 +1,32 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+// Generujeme unikátní ID pro každou instanci prohlížeče
+const generateBrowserId = () => {
+  if (typeof window === "undefined") return ""
 
-// Vytvoříme klienta s nastavením pro podporu více sessions
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    storageKey: "supabase-auth-token",
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: "pkce",
+  const existingId = localStorage.getItem("browser_session_id")
+  if (existingId) return existingId
+
+  const newId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+  localStorage.setItem("browser_session_id", newId)
+  return newId
+}
+
+// Unikátní ID pro tuto instanci prohlížeče
+const BROWSER_ID = typeof window !== "undefined" ? generateBrowserId() : ""
+
+// Klíč pro ukládání session do localStorage
+const getSessionStorageKey = () => `supabase_auth_token_${BROWSER_ID}`
+
+// Vytvoření Supabase klienta s vlastním storage key
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+  {
+    auth: {
+      storageKey: getSessionStorageKey(),
+      persistSession: true,
+      autoRefreshToken: true,
+    },
   },
-})
+)
