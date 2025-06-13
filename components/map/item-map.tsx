@@ -1,21 +1,13 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import type { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { MapPin, Navigation } from "lucide-react"
+import { MapPin, Navigation, Star } from "lucide-react"
 import Link from "next/link"
 import L from "leaflet"
-
-// Vlastní ikona pro markery předmětů
-const itemIcon = new L.Icon({
-  iconUrl: "/item-marker.png",
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -32],
-})
 
 // Oprava ikon Leaflet
 const fixLeafletIcons = () => {
@@ -26,6 +18,19 @@ const fixLeafletIcons = () => {
     iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
     shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
   })
+}
+
+// Funkce pro získání ikony podle kategorie
+const getCategoryIcon = (categoryId: string) => {
+  const iconMap: Record<string, string> = {
+    "1": "/category-markers/tools.png",
+    "2": "/category-markers/electronics.png",
+    "3": "/category-markers/sports.png",
+    "4": "/category-markers/garden.png",
+    "5": "/category-markers/home.png",
+  }
+
+  return iconMap[categoryId] || "/category-markers/other.png"
 }
 
 interface ItemMapProps {
@@ -50,12 +55,17 @@ function LocationMarker() {
       icon={
         new L.Icon({
           iconUrl: "/user-location-marker.png",
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          popupAnchor: [0, -40],
         })
       }
     >
-      <Popup>Vaše poloha</Popup>
+      <Popup>
+        <div className="text-center">
+          <strong>Vaše poloha</strong>
+        </div>
+      </Popup>
     </Marker>
   )
 }
@@ -79,8 +89,17 @@ function LocateButton() {
   )
 }
 
-// Funkce pro převod adresy na souřadnice
+// Funkce pro převod adresy na souřadnice s cachováním
+const geocodeCache: Record<string, [number, number]> = {}
+
 async function geocodeAddress(address: string): Promise<[number, number] | null> {
+  if (!address) return null
+
+  // Kontrola cache
+  if (geocodeCache[address]) {
+    return geocodeCache[address]
+  }
+
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`,
@@ -88,7 +107,10 @@ async function geocodeAddress(address: string): Promise<[number, number] | null>
     const data = await response.json()
 
     if (data && data.length > 0) {
-      return [Number.parseFloat(data[0].lat), Number.parseFloat(data[0].lon)]
+      const coords: [number, number] = [Number.parseFloat(data[0].lat), Number.parseFloat(data[0].lon)]
+      // Uložení do cache
+      geocodeCache[address] = coords
+      return coords
     }
     return null
   } catch (error) {
@@ -103,11 +125,34 @@ export default function ItemMap({ items }: ItemMapProps) {
   const [isLoading, setIsLoading] = useState(true)
   const mapRef = useRef<L.Map | null>(null)
 
+  // Předpřipravené ikony pro kategorie
+  const categoryIcons = useMemo(() => {
+    const icons: Record<string, L.Icon> = {}
+
+    // Předpřipravíme ikony pro všechny kategorie
+    items.forEach((item) => {
+      if (!item.category_id) return
+
+      if (!icons[item.category_id]) {
+        icons[item.category_id] = new L.Icon({
+          iconUrl: getCategoryIcon(item.category_id),
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+          popupAnchor: [0, -40],
+        })
+      }
+    })
+
+    return icons
+  }, [items])
+
   useEffect(() => {
     fixLeafletIcons()
+
     const processItems = async () => {
       setIsLoading(true)
 
+      // Paralelní zpracování všech položek pro rychlejší načítání
       const itemsWithCoordsPromises = items.map(async (item) => {
         if (item.location) {
           const coords = await geocodeAddress(item.location)
@@ -149,17 +194,37 @@ export default function ItemMap({ items }: ItemMapProps) {
           mapRef.current = map
         }}
       >
+        {/* Satelitní mapa */}
+        <TileLayer
+          attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        />
+
+        {/* Hybridní vrstva s popisky */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner-hybrid/{z}/{x}/{y}{r}.png"
+          opacity={0.7}
         />
 
         {itemsWithCoords.map((item) =>
           item.coords ? (
-            <Marker key={item.id} position={item.coords} icon={itemIcon}>
+            <Marker
+              key={item.id}
+              position={item.coords}
+              icon={
+                categoryIcons[item.category_id] ||
+                new L.Icon({
+                  iconUrl: "/category-markers/other.png",
+                  iconSize: [40, 40],
+                  iconAnchor: [20, 40],
+                  popupAnchor: [0, -40],
+                })
+              }
+            >
               <Popup>
-                <div className="p-1">
-                  <div className="flex items-center mb-2">
+                <div className="p-2 min-w-[200px]">
+                  <div className="flex items-center mb-3">
                     <div className="w-16 h-16 mr-3 overflow-hidden rounded">
                       <img
                         src={item.images[0] || "/placeholder.svg?height=64&width=64"}
@@ -170,6 +235,12 @@ export default function ItemMap({ items }: ItemMapProps) {
                     <div>
                       <h3 className="font-semibold text-base">{item.title}</h3>
                       <p className="text-sm text-gray-600">{item.daily_rate} Kč/den</p>
+                      {item.owner && (
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Star className="h-3 w-3 mr-1 text-yellow-500" />
+                          {item.owner.reputation_score.toFixed(1)}
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
 import { db } from "@/lib/database"
@@ -116,6 +116,103 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
     <div>
       <Label className="text-base font-medium">Vyberte datum</Label>
       <div className="mt-2">
+        <style jsx global>{`
+          /* Globální styly pro kalendář */
+          .rdp {
+            --rdp-cell-size: 40px;
+            --rdp-accent-color: #3b82f6;
+            --rdp-background-color: #e0f2fe;
+            margin: 0;
+          }
+          
+          .rdp-months {
+            justify-content: center;
+          }
+          
+          .rdp-month {
+            background-color: #fff;
+            border-radius: 6px;
+            padding: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          .rdp-caption {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 8px;
+            position: relative;
+          }
+          
+          .rdp-head_cell {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-align: center;
+            padding: 8px 0;
+            text-transform: uppercase;
+          }
+          
+          .rdp-tbody {
+            border-collapse: separate;
+            border-spacing: 2px;
+          }
+          
+          .rdp-cell {
+            text-align: center;
+            padding: 0;
+            margin: 0;
+          }
+          
+          .rdp-day {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1f2937;
+            font-weight: 500;
+            font-size: 0.875rem;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .rdp-day_today {
+            background-color: #dbeafe !important;
+            color: #1e40af !important;
+            font-weight: bold !important;
+            border: 2px solid #3b82f6 !important;
+          }
+          
+          .rdp-day_selected {
+            background-color: #3b82f6 !important;
+            color: white !important;
+            font-weight: bold !important;
+          }
+          
+          .rdp-day_range_middle {
+            background-color: #bfdbfe !important;
+            color: #1e40af !important;
+          }
+          
+          .rdp-day_disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          
+          /* Vlastní styly pro rezervované dny */
+          .date-booked {
+            background-color: #fee2e2 !important;
+            color: #b91c1c !important;
+            text-decoration: line-through !important;
+          }
+          
+          .date-pending {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+          }
+        `}</style>
         <Calendar
           mode="range"
           selected={selectedDates}
@@ -142,11 +239,6 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
             },
           }}
           fromDate={new Date()}
-          styles={{
-            day_today: { fontWeight: "bold", border: "1px solid #3b82f6" },
-            day_selected: { backgroundColor: "#3b82f6", color: "white" },
-            day_range_middle: { backgroundColor: "#dbeafe", color: "#1e40af" },
-          }}
           classNames={{
             months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
             month: "space-y-4",
@@ -158,10 +250,10 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
             nav_button_next: "absolute right-1",
             table: "w-full border-collapse space-y-1",
             head_row: "flex",
-            head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] py-2",
+            head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] py-2 text-center",
             row: "flex w-full mt-2",
             cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-            day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100 rounded-md",
+            day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100 rounded-md flex items-center justify-center",
             day_selected:
               "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
             day_today: "bg-accent text-accent-foreground",

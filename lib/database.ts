@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import type { User, Item, Category, Booking, Review, Notification } from "./types"
+import type { User, Item, Category, Booking, Review, Notification, ChatRoom, ChatMessage } from "./types"
 
 export const db = {
   // Users
@@ -358,6 +358,20 @@ export const db = {
       throw error
     }
 
+    // Po vytvoření rezervace vytvoříme chatovací místnost
+    if (data && data.item) {
+      try {
+        await this.createChatRoom({
+          booking_id: data.id,
+          item_id: data.item_id,
+          owner_id: data.item.owner_id,
+          borrower_id: data.borrower_id,
+        })
+      } catch (chatError) {
+        console.error("Error creating chat room:", chatError)
+      }
+    }
+
     return data
   },
 
@@ -541,5 +555,186 @@ export const db = {
     }
 
     return true
+  },
+
+  // Chat
+  async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
+    const { data, error } = await supabase
+      .from("chat_rooms")
+      .select(`
+        *,
+        item:items(*),
+        owner:users!chat_rooms_owner_id_fkey(*),
+        borrower:users!chat_rooms_borrower_id_fkey(*)
+      `)
+      .or(`owner_id.eq.${userId},borrower_id.eq.${userId}`)
+      .order("updated_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching chat rooms:", error)
+      throw error
+    }
+
+    return data || []
+  },
+
+  async getChatRoomById(roomId: string): Promise<ChatRoom | null> {
+    const { data, error } = await supabase
+      .from("chat_rooms")
+      .select(`
+        *,
+        item:items(*),
+        owner:users!chat_rooms_owner_id_fkey(*),
+        borrower:users!chat_rooms_borrower_id_fkey(*)
+      `)
+      .eq("id", roomId)
+      .single()
+
+    if (error) {
+      if (error.code === "PGRST116") return null
+      console.error("Error fetching chat room:", error)
+      throw error
+    }
+
+    return data
+  },
+
+  async createChatRoom(roomData: Omit<ChatRoom, "id" | "created_at" | "updated_at">): Promise<ChatRoom> {
+    const { data, error } = await supabase
+      .from("chat_rooms")
+      .insert([roomData])
+      .select(`
+        *,
+        item:items(*),
+        owner:users!chat_rooms_owner_id_fkey(*),
+        borrower:users!chat_rooms_borrower_id_fkey(*)
+      `)
+      .single()
+
+    if (error) {
+      console.error("Error creating chat room:", error)
+      throw error
+    }
+
+    return data
+  },
+
+  async getChatMessagesByRoom(roomId: string): Promise<ChatMessage[]> {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select(`
+        *,
+        sender:users(*)
+      `)
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      console.error("Error fetching chat messages:", error)
+      throw error
+    }
+
+    return data || []
+  },
+
+  async sendChatMessage(messageData: Omit<ChatMessage, "id" | "created_at" | "is_read">): Promise<ChatMessage> {
+    // Nastavíme zprávu jako nepřečtenou
+    const fullMessageData = {
+      ...messageData,
+      is_read: false,
+    }
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .insert([fullMessageData])
+      .select(`
+        *,
+        sender:users(*)
+      `)
+      .single()
+
+    if (error) {
+      console.error("Error sending chat message:", error)
+      throw error
+    }
+
+    // Aktualizujeme poslední zprávu v místnosti
+    await supabase
+      .from("chat_rooms")
+      .update({
+        last_message: messageData.message,
+        last_message_time: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", messageData.room_id)
+
+    return data
+  },
+
+  async markChatMessagesAsRead(roomId: string, userId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from("chat_messages")
+      .update({ is_read: true })
+      .eq("room_id", roomId)
+      .neq("sender_id", userId)
+      .eq("is_read", false)
+
+    if (error) {
+      console.error("Error marking chat messages as read:", error)
+      throw error
+    }
+
+    return true
+  },
+
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    // Získáme všechny místnosti, kde je uživatel
+    const { data: rooms, error: roomsError } = await supabase
+      .from("chat_rooms")
+      .select("id")
+      .or(`owner_id.eq.${userId},borrower_id.eq.${userId}`)
+
+    if (roomsError) {
+      console.error("Error fetching chat rooms for unread count:", roomsError)
+      throw roomsError
+    }
+
+    if (!rooms || rooms.length === 0) return 0
+
+    const roomIds = rooms.map((room) => room.id)
+
+    // Získáme počet nepřečtených zpráv
+    const { count, error } = await supabase
+      .from("chat_messages")
+      .select("id", { count: "exact", head: true })
+      .in("room_id", roomIds)
+      .neq("sender_id", userId)
+      .eq("is_read", false)
+
+    if (error) {
+      console.error("Error counting unread messages:", error)
+      throw error
+    }
+
+    return count || 0
+  },
+
+  // Funkce pro naslouchání novým zprávám v reálném čase
+  subscribeToMessages(roomId: string, callback: (message: ChatMessage) => void) {
+    return supabase
+      .channel(`chat_messages:${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+          filter: `room_id=eq.${roomId}`,
+        },
+        (payload) => {
+          callback(payload.new as ChatMessage)
+        },
+      )
+      .subscribe()
   },
 }

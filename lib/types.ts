@@ -82,3 +82,29 @@ export interface Notification {
   is_read: boolean
   created_at: string
 }
+
+// Nové typy pro chat
+export interface ChatRoom {
+  id: string
+  booking_id: string
+  item_id: string
+  owner_id: string
+  borrower_id: string
+  last_message?: string
+  last_message_time?: string
+  created_at: string
+  updated_at: string
+  item?: Item
+  owner?: User
+  borrower?: User
+}
+
+export interface ChatMessage {
+  id: string
+  room_id: string
+  sender_id: string
+  message: string
+  is_read: boolean
+  created_at: string
+  sender?: User
+}
