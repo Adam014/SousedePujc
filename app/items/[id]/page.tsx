@@ -633,7 +633,7 @@ export default function ItemDetailPage() {
                     </div>
                   </div>
 
-                  {selectedDates.from && selectedDates.to && (
+                  {/* {selectedDates.from && selectedDates.to && (
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
                         <span>Doba půjčení:</span>
@@ -669,7 +669,7 @@ export default function ItemDetailPage() {
                         </div>
                       )}
                     </div>
-                  )}
+                  )} */}
 
                   <div>
                     <Label htmlFor="message">Zpráva pro majitele (volitelné)</Label>
