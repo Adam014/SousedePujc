@@ -29,6 +29,7 @@ import MessageInput from "./message-input"
 import ContentWarning from "./content-warning"
 import ActivityIndicator from "@/components/ui/activity-indicator"
 import { Input } from "@/components/ui/input"
+import { useRealtimeChat } from "@/hooks/use-realtime-chat"
 
 interface ChatRoomProps {
   roomId: string
@@ -94,56 +95,31 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     loadRoomData()
   }, [roomId, user, router, isPopup])
 
-  // Vylepšené nastavení realtime subscription pro zprávy
-  useEffect(() => {
-    if (!user || !roomId) return
-
-    const subscription = db.subscribeToMessages(roomId, async (payload) => {
-      const { eventType, new: newRecord, old: oldRecord } = payload
-
-      if (eventType === "INSERT") {
-        // Nová zpráva
-        const newMessage = newRecord as ChatMessage
-
-        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou a přehrajeme zvuk
-        if (newMessage.sender_id !== user.id) {
-          await db.markChatMessagesAsRead(roomId, user.id)
-          playMessageSound()
-        }
-
-        // Získáme kompletní data odesílatele
-        const sender = await db.getUserById(newMessage.sender_id)
-
-        // Přidáme novou zprávu do seznamu
-        setMessages((prev) => {
-          // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
-          const exists = prev.some((msg) => msg.id === newMessage.id)
-          if (exists) return prev
-          return [...prev, { ...newMessage, sender }]
-        })
-      } else if (eventType === "UPDATE") {
-        // Aktualizace zprávy
-        const updatedMessage = newRecord as ChatMessage
-
-        // Aktualizujeme zprávu v seznamu
-        setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)))
-      } else if (eventType === "DELETE") {
-        // Smazání zprávy
-        const deletedMessageId = oldRecord.id
-
-        // Odstraníme zprávu ze seznamu
-        setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
+  const { isConnected } = useRealtimeChat({
+    roomId,
+    userId: user?.id || "",
+    onNewMessage: async (newMessage) => {
+      // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou a přehrajeme zvuk
+      if (newMessage.sender_id !== user?.id) {
+        await db.markChatMessagesAsRead(roomId, user.id)
+        playMessageSound()
       }
-    })
 
-    subscriptionRef.current = subscription
-
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe()
-      }
-    }
-  }, [roomId, user, playMessageSound])
+      // Přidáme novou zprávu do seznamu
+      setMessages((prev) => {
+        // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
+        const exists = prev.some((msg) => msg.id === newMessage.id)
+        if (exists) return prev
+        return [...prev, newMessage]
+      })
+    },
+    onMessageUpdate: (updatedMessage) => {
+      setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg)))
+    },
+    onMessageDelete: (messageId) => {
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId))
+    },
+  })
 
   // Automatické scrollování na konec zpráv
   useEffect(() => {
@@ -340,7 +316,13 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           </div>
 
           <div className="ml-3 flex-1">
-            <CardTitle className="text-base font-semibold">{otherUser?.name || "Neznámý uživatel"}</CardTitle>
+            <CardTitle className="text-base font-semibold flex items-center">
+              {otherUser?.name || "Neznámý uživatel"}
+              <div
+                className={`ml-2 w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+                title={isConnected ? "Připojeno" : "Odpojeno"}
+              />
+            </CardTitle>
             <CardDescription className="text-sm truncate">
               {room.item?.title || "Předmět není k dispozici"}
             </CardDescription>

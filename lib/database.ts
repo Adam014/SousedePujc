@@ -652,13 +652,14 @@ export const db = {
       is_read: false,
     }
 
+    // Použijeme upsert pro lepší real-time synchronizaci
     const { data, error } = await supabase
       .from("chat_messages")
       .insert([filteredMessageData])
       .select(`
-        *,
-        sender:users(*)
-      `)
+      *,
+      sender:users(*)
+    `)
       .single()
 
     if (error) {

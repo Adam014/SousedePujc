@@ -5,8 +5,9 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Paperclip, ImageIcon } from "lucide-react"
+import { Send } from "lucide-react"
 import EmojiPicker from "./emoji-picker"
+import FileUploadPopup from "./file-upload-popup"
 
 interface MessageInputProps {
   value: string
@@ -52,13 +53,15 @@ export default function MessageInput({
       <form onSubmit={onSubmit} className="flex items-end gap-2">
         <div className="flex-1 relative">
           <div className="flex items-center bg-gray-50 rounded-full border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 ml-2" disabled={disabled}>
-              <Paperclip className="h-4 w-4 text-gray-500" />
-            </Button>
-
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={disabled}>
-              <ImageIcon className="h-4 w-4 text-gray-500" />
-            </Button>
+            <FileUploadPopup
+              onFileUploaded={(url, type, fileName) => {
+                // Přidáme přílohu do zprávy
+                const attachmentText =
+                  type === "image" ? `[OBRÁZEK: ${fileName}](${url})` : `[SOUBOR: ${fileName}](${url})`
+                onChange(value + attachmentText)
+              }}
+              disabled={disabled}
+            />
 
             <Input
               ref={inputRef}
