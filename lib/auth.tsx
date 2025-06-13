@@ -9,7 +9,11 @@ import { supabase } from "./supabase"
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string) => Promise<{ success: boolean; needsVerification?: boolean }>
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+  ) => Promise<{ success: boolean; needsVerification?: boolean }>
   logout: () => void
   register: (userData: { email: string; name: string; password: string }) => Promise<boolean>
   resendVerification: (email: string) => Promise<boolean>
@@ -81,12 +85,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean }> => {
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe = false,
+  ): Promise<{ success: boolean; needsVerification?: boolean }> => {
     try {
       // Přihlášení pomocí Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          // Pokud je rememberMe true, nastavíme expirationTime na 30 dní, jinak na 1 den
+          expiresIn: rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60,
+        },
       })
 
       if (error) {

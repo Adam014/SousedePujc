@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
-import { Package, Mail } from "lucide-react"
+import { Package, Mail, Eye, EyeOff, Lock, User } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -20,6 +21,8 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resendingVerification, setResendingVerification] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const { login, resendVerification } = useAuth()
   const router = useRouter()
 
@@ -30,7 +33,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const result = await login(email, password)
+      const result = await login(email, password, rememberMe)
       if (result.success) {
         router.push("/")
       } else if (result.needsVerification) {
@@ -69,21 +72,27 @@ export default function LoginPage() {
     }
   }
 
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-4">
-            <Package className="h-12 w-12 text-blue-600" />
+            <div className="h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center">
+              <Package className="h-8 w-8 text-white" />
+            </div>
           </div>
-          <CardTitle className="text-2xl">Přihlášení</CardTitle>
-          <CardDescription>Přihlaste se do svého účtu</CardDescription>
+          <CardTitle className="text-2xl font-bold">Přihlášení</CardTitle>
+          <CardDescription className="text-gray-500">Přihlaste se do svého účtu pro pokračování</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5">
             {error && (
-              <Alert variant={needsVerification ? "default" : "destructive"}>
+              <Alert variant={needsVerification ? "default" : "destructive"} className="text-sm">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -111,41 +120,89 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="vas@email.cz"
-              />
+              <Label htmlFor="email" className="text-sm font-medium">
+                E-mail
+              </Label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-4 w-4 text-gray-400" />
+                </div>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="vas@email.cz"
+                  className="pl-10"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Heslo</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Heslo
+                </Label>
+                <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                  Zapomenuté heslo?
+                </Link>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-gray-400" />
+                </div>
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="pl-10"
+                />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
               />
+              <Label htmlFor="remember" className="text-sm font-medium cursor-pointer">
+                Zapamatovat přihlášení
+              </Label>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
+          <CardFooter className="flex flex-col space-y-4 pt-2">
+            <Button type="submit" className="w-full py-5 text-base font-medium" disabled={loading}>
               {loading ? "Přihlašování..." : "Přihlásit se"}
             </Button>
 
-            <p className="text-center text-sm text-gray-600">
-              Nemáte účet?{" "}
-              <Link href="/register" className="text-blue-600 hover:underline">
-                Registrujte se
-              </Link>
-            </p>
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                Nemáte účet?{" "}
+                <Link href="/register" className="text-blue-600 hover:underline font-medium">
+                  Registrujte se
+                </Link>
+              </p>
+            </div>
           </CardFooter>
         </form>
       </Card>
