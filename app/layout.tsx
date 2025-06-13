@@ -11,12 +11,12 @@ const inter = Inter({ subsets: ["latin", "latin-ext"] })
 export const metadata = {
   title: "SousedePůjč - Půjčování věcí mezi sousedy",
   description: "Platforma pro půjčování věcí mezi sousedy",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="cs">
+    <html lang="cs" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <AuthProvider>
