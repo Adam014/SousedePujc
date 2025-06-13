@@ -46,17 +46,27 @@ export default function ProfilePage() {
         setLoading(true)
         setError("")
 
-        const [items, bookings, reviews, ownerBookings] = await Promise.all([
-          db.getItemsByOwner(user.id),
-          db.getBookingsByUser(user.id),
-          db.getReviewsByUser(user.id),
-          db.getBookingsByOwner(user.id),
-        ])
-
+        // Načteme předměty uživatele
+        const items = await db.getItemsByOwner(user.id)
         setUserItems(items)
+
+        // Načteme rezervace, kde je uživatel zájemcem (borrower)
+        const bookings = await db.getBookingsByUser(user.id)
         setUserBookings(bookings)
+
+        // Načteme hodnocení uživatele
+        const reviews = await db.getReviewsByUser(user.id)
         setUserReviews(reviews)
-        setOwnerBookings(ownerBookings)
+
+        // Načteme rezervace předmětů, které vlastní uživatel
+        // Toto jsou rezervace, kde je uživatel majitelem předmětu
+        const itemIds = items.map((item) => item.id)
+        if (itemIds.length > 0) {
+          const bookingsForOwnedItems = await db.getBookingsForOwnedItems(itemIds)
+          setOwnerBookings(bookingsForOwnedItems)
+        } else {
+          setOwnerBookings([])
+        }
       } catch (error) {
         console.error("Error loading user data:", error)
         setError("Chyba při načítání dat profilu")

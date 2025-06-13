@@ -94,16 +94,6 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
     return date < today || isDateBooked(date)
   }
 
-  const getDateClassNames = (date: Date) => {
-    if (isDateBooked(date)) {
-      return "bg-red-100 text-red-800 line-through"
-    }
-    if (isDatePending(date)) {
-      return "bg-yellow-100 text-yellow-800"
-    }
-    return ""
-  }
-
   if (loading) {
     return (
       <div className="text-center py-4">
@@ -126,69 +116,12 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
     <div>
       <Label className="text-base font-medium">Vyberte datum</Label>
       <div className="mt-2">
-        <style jsx global>{`
-          .rdp-head_cell {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #6b7280;
-            text-align: center;
-            padding: 0.5rem 0;
-            width: 100%;
-          }
-          
-          .rdp-table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          
-          .rdp-cell {
-            text-align: center;
-            padding: 0;
-            width: calc(100% / 7);
-            height: 40px;
-          }
-          
-          .rdp-day {
-            width: 100%;
-            height: 100%;
-            border-radius: 0.375rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          
-          .rdp-day_selected {
-            background-color: #3b82f6;
-            color: white;
-          }
-          
-          .rdp-day_range_middle {
-            background-color: #dbeafe;
-            color: #1e40af;
-          }
-          
-          .rdp-day_disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-          
-          .date-booked {
-            background-color: #fee2e2;
-            color: #b91c1c;
-            text-decoration: line-through;
-          }
-          
-          .date-pending {
-            background-color: #fef3c7;
-            color: #92400e;
-          }
-        `}</style>
         <Calendar
           mode="range"
           selected={selectedDates}
           onSelect={(range) => onSelect(range || { from: undefined, to: undefined })}
           disabled={isDateDisabled}
-          className={cn("rounded-md border p-3")}
+          className={cn("rounded-md border shadow-sm")}
           modifiers={{
             booked: bookedDates
               .filter((d) => d.status === "confirmed" || d.status === "active" || d.status === "completed")
@@ -200,17 +133,24 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
               backgroundColor: "#fee2e2",
               color: "#b91c1c",
               textDecoration: "line-through",
+              fontWeight: "bold",
             },
             pending: {
               backgroundColor: "#fef3c7",
               color: "#92400e",
+              fontWeight: "bold",
             },
           }}
           fromDate={new Date()}
+          styles={{
+            day_today: { fontWeight: "bold", border: "1px solid #3b82f6" },
+            day_selected: { backgroundColor: "#3b82f6", color: "white" },
+            day_range_middle: { backgroundColor: "#dbeafe", color: "#1e40af" },
+          }}
           classNames={{
             months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
             month: "space-y-4",
-            caption: "flex justify-center pt-1 relative items-center",
+            caption: "flex justify-center pt-1 relative items-center px-2",
             caption_label: "text-sm font-medium",
             nav: "space-x-1 flex items-center",
             nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
@@ -218,10 +158,10 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
             nav_button_next: "absolute right-1",
             table: "w-full border-collapse space-y-1",
             head_row: "flex",
-            head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+            head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] py-2",
             row: "flex w-full mt-2",
             cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-            day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
+            day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100 rounded-md",
             day_selected:
               "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
             day_today: "bg-accent text-accent-foreground",
@@ -232,16 +172,23 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
           }}
         />
       </div>
-      <div className="mt-2 text-xs text-gray-500 space-y-1">
-        <div className="flex items-center">
-          <div className="w-3 h-3 bg-red-100 rounded-full mr-2"></div>
-          <p>Červené dny jsou již potvrzené rezervace</p>
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-red-100 border border-red-300"></div>
+          <p className="text-sm text-gray-600">Potvrzené rezervace</p>
         </div>
-        <div className="flex items-center">
-          <div className="w-3 h-3 bg-yellow-100 rounded-full mr-2"></div>
-          <p>Žluté dny jsou čekající rezervace</p>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-yellow-100 border border-yellow-300"></div>
+          <p className="text-sm text-gray-600">Čekající rezervace</p>
         </div>
-        <p>• Vyberte dostupné dny pro vaši rezervaci</p>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-300"></div>
+          <p className="text-sm text-gray-600">Dnešní datum</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-blue-500 border border-blue-600"></div>
+          <p className="text-sm text-gray-600">Vybraný termín</p>
+        </div>
       </div>
     </div>
   )

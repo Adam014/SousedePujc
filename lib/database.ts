@@ -231,6 +231,7 @@ export const db = {
   },
 
   async getBookingsByUser(userId: string): Promise<Booking[]> {
+    // Upravený dotaz pro správné načtení údajů o majiteli předmětu
     const { data, error } = await supabase
       .from("bookings")
       .select(`
@@ -249,7 +250,16 @@ export const db = {
       throw error
     }
 
-    return data || []
+    // Kontrola, že každá rezervace má správně načtené údaje o majiteli
+    const bookingsWithOwners =
+      data?.map((booking) => {
+        if (!booking.item?.owner) {
+          console.warn("Missing owner data for booking:", booking.id)
+        }
+        return booking
+      }) || []
+
+    return bookingsWithOwners
   },
 
   async getBookingsByOwner(ownerId: string): Promise<Booking[]> {
@@ -412,6 +422,28 @@ export const db = {
     }
 
     return true
+  },
+
+  // Přidání nové funkce pro načtení rezervací předmětů, které vlastní uživatel
+  async getBookingsForOwnedItems(itemIds: string[]): Promise<Booking[]> {
+    if (itemIds.length === 0) return []
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        item:items!bookings_item_id_fkey(*),
+        borrower:users!bookings_borrower_id_fkey(*)
+      `)
+      .in("item_id", itemIds)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching bookings for owned items:", error)
+      throw error
+    }
+
+    return data || []
   },
 
   // Reviews

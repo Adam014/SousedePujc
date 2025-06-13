@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin, Star } from "lucide-react"
 import type { Booking } from "@/lib/types"
 import { db } from "@/lib/database"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import Link from "next/link"
 
 interface BookingCardProps {
   booking: Booking
@@ -42,13 +43,26 @@ const statusColors = {
 }
 
 export default function BookingCard({ booking, isOwner }: BookingCardProps) {
-  const otherUser = isOwner ? booking.borrower : booking.item?.owner
+  // Explicitně určíme, kdo je majitel a kdo je zájemce
+  const owner = booking.item?.owner
+  const borrower = booking.borrower
+
+  // Určíme, který uživatel je "druhá strana" podle toho, zda jsme majitel nebo zájemce
+  const otherUser = isOwner ? borrower : owner
+
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState("")
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+
+  // Debug log pro kontrolu dat
+  useEffect(() => {
+    if (!owner) {
+      console.warn("Owner data is missing for booking:", booking.id)
+    }
+  }, [booking])
 
   const handleConfirmBooking = async () => {
     try {
@@ -167,7 +181,11 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
             </div>
 
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">{booking.item?.title}</h3>
+              <h3 className="font-semibold text-lg">
+                <Link href={`/items/${booking.item_id}`} className="hover:underline">
+                  {booking.item?.title}
+                </Link>
+              </h3>
 
               <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
                 <div className="flex items-center">
@@ -193,20 +211,24 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
 
           {/* Střední část - Info o uživateli */}
           <div className="flex items-center space-x-3 lg:mx-6">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={otherUser?.avatar_url || "/placeholder.svg"} />
-              <AvatarFallback>{otherUser?.name.charAt(0)}</AvatarFallback>
-            </Avatar>
+            {otherUser && (
+              <Link href={`/users/${otherUser?.id}`} className="flex items-center space-x-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={otherUser?.avatar_url || "/placeholder.svg"} />
+                  <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
 
-            <div>
-              <p className="font-medium">{otherUser?.name}</p>
-              <p className="text-sm text-gray-500">{isOwner ? "Zájemce" : "Majitel"}</p>
+                <div>
+                  <p className="font-medium">{otherUser?.name || "Neznámý uživatel"}</p>
+                  <p className="text-sm text-gray-500">{isOwner ? "Zájemce" : "Majitel"}</p>
 
-              <div className="flex items-center mt-1">
-                <span className="text-xs text-gray-500 mr-2">Hodnocení:</span>
-                <span className="text-xs font-medium">{otherUser?.reputation_score?.toFixed(1)}</span>
-              </div>
-            </div>
+                  <div className="flex items-center mt-1">
+                    <span className="text-xs text-gray-500 mr-2">Hodnocení:</span>
+                    <span className="text-xs font-medium">{otherUser?.reputation_score?.toFixed(1) || "N/A"}</span>
+                  </div>
+                </div>
+              </Link>
+            )}
           </div>
 
           {/* Pravá část - Akce */}

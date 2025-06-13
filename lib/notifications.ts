@@ -42,8 +42,8 @@ export function useNotifications(userId: string | null) {
       const notification = notifications.find((n) => n.id === notificationId)
       if (notification && !notification.is_read) {
         // Update locally
-        notification.is_read = true
-        setNotifications([...notifications])
+        const updatedNotifications = notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        setNotifications(updatedNotifications)
         setUnreadCount((prev) => Math.max(0, prev - 1))
 
         // Persist to database
@@ -56,9 +56,15 @@ export function useNotifications(userId: string | null) {
 
   const markAllAsRead = async () => {
     try {
+      if (!userId) return
+
+      // Update locally
       const updatedNotifications = notifications.map((n) => ({ ...n, is_read: true }))
       setNotifications(updatedNotifications)
       setUnreadCount(0)
+
+      // Persist to database
+      await db.markAllNotificationsAsRead(userId)
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     }
