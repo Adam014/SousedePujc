@@ -28,6 +28,7 @@ import MessageInput from "./message-input"
 import MessageAttachment from "./message-attachment"
 import ContentWarning from "./content-warning"
 import { Input } from "@/components/ui/input"
+import { supabase } from "@/lib/supabase"
 
 interface ChatRoomProps {
   roomId: string
@@ -89,54 +90,85 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     }
 
     loadRoomData()
+
+    // Nastavíme interval pro pravidelnou kontrolu nových zpráv a označení jako přečtené
+    const interval = setInterval(async () => {
+      if (user) {
+        await db.markChatMessagesAsRead(roomId, user.id)
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [roomId, user, router, isPopup])
 
   // Vylepšené nastavení realtime subscription pro zprávy
   useEffect(() => {
     if (!user || !roomId) return
 
-    const subscription = db.subscribeToMessages(roomId, async (payload) => {
-      const { eventType, new: newRecord, old: oldRecord } = payload
+    // Přímá Supabase realtime subscription pro lepší realtime funkcionalitu
+    const channel = supabase
+      .channel(`chat_room:${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_messages",
+          filter: `room_id=eq.${roomId}`,
+        },
+        async (payload) => {
+          console.log("Realtime event received:", payload)
 
-      if (eventType === "INSERT") {
-        // Nová zpráva
-        const newMessage = newRecord as ChatMessage
+          const { eventType, new: newRecord, old: oldRecord } = payload
 
-        // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
-        if (newMessage.sender_id !== user.id) {
-          await db.markChatMessagesAsRead(roomId, user.id)
-        }
+          if (eventType === "INSERT") {
+            // Nová zpráva
+            const newMessage = newRecord as ChatMessage
 
-        // Získáme kompletní data odesílatele
-        const sender = await db.getUserById(newMessage.sender_id)
+            // Pokud je odesílatel někdo jiný, označíme zprávu jako přečtenou
+            if (newMessage.sender_id !== user.id) {
+              await db.markChatMessagesAsRead(roomId, user.id)
+            }
 
-        // Přidáme novou zprávu do seznamu
-        setMessages((prev) => {
-          // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
-          const exists = prev.some((msg) => msg.id === newMessage.id)
-          if (exists) return prev
-          return [...prev, { ...newMessage, sender }]
-        })
-      } else if (eventType === "UPDATE") {
-        // Aktualizace zprávy
-        const updatedMessage = newRecord as ChatMessage
+            // Získáme kompletní data odesílatele
+            const sender = await db.getUserById(newMessage.sender_id)
 
-        // Aktualizujeme zprávu v seznamu
-        setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)))
-      } else if (eventType === "DELETE") {
-        // Smazání zprávy
-        const deletedMessageId = oldRecord.id
+            // Přidáme novou zprávu do seznamu
+            setMessages((prev) => {
+              // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
+              const exists = prev.some((msg) => msg.id === newMessage.id)
+              if (exists) return prev
+              return [...prev, { ...newMessage, sender }]
+            })
+          } else if (eventType === "UPDATE") {
+            // Aktualizace zprávy
+            const updatedMessage = newRecord as ChatMessage
 
-        // Odstraníme zprávu ze seznamu
-        setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
-      }
-    })
+            // Získáme kompletní data odesílatele
+            const sender = updatedMessage.sender || (await db.getUserById(updatedMessage.sender_id))
 
-    subscriptionRef.current = subscription
+            // Aktualizujeme zprávu v seznamu
+            setMessages((prev) =>
+              prev.map((msg) => (msg.id === updatedMessage.id ? { ...updatedMessage, sender } : msg)),
+            )
+          } else if (eventType === "DELETE") {
+            // Smazání zprávy
+            const deletedMessageId = oldRecord.id
+
+            // Odstraníme zprávu ze seznamu
+            setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
+          }
+        },
+      )
+      .subscribe()
+
+    // Uložíme referenci na kanál pro pozdější odhlášení
+    subscriptionRef.current = channel
 
     return () => {
+      // Odhlásíme se při unmount komponenty
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe()
+        supabase.removeChannel(subscriptionRef.current)
       }
     }
   }, [roomId, user])
@@ -424,7 +456,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
                     <div className={`${!showAvatar && !isCurrentUser ? "ml-10" : ""}`}>
                       <div
-                        className={`rounded-2xl px-4 py-2 ${
+                        className={`rounded-2xl px-4 py-2 group ${
                           isCurrentUser
                             ? "bg-blue-500 text-white rounded-br-md"
                             : "bg-gray-100 text-gray-800 rounded-bl-md"
@@ -479,7 +511,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-5 w-5 p-0 text-blue-100 hover:text-white opacity-0 group-hover:opacity-100"
+                                      className="h-5 w-5 p-0 text-blue-100 hover:text-white"
                                     >
                                       <MoreVertical className="h-3 w-3" />
                                     </Button>

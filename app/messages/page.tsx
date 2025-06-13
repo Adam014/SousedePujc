@@ -2,64 +2,75 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth"
+import { db } from "@/lib/database"
 import ChatList from "@/components/chat/chat-list"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageSquare } from "lucide-react"
+import type { ChatRoom } from "@/lib/types"
+import { supabase } from "@/lib/supabase"
 
 export default function MessagesPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user } = useAuth()
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!authLoading) {
-      setLoading(false)
-    }
-  }, [authLoading])
+    const loadChatRooms = async () => {
+      if (!user) return
 
-  if (loading || authLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </div>
-    )
-  }
+      try {
+        setLoading(true)
+        const rooms = await db.getChatRoomsByUser(user.id)
+        setChatRooms(rooms)
+
+        // Označíme všechny zprávy jako přečtené
+        for (const room of rooms) {
+          await db.markChatMessagesAsRead(room.id, user.id)
+        }
+      } catch (error) {
+        console.error("Error loading chat rooms:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadChatRooms()
+
+    // Nastavíme realtime subscription pro chat_rooms
+    const channel = supabase
+      .channel("chat_rooms_updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_rooms",
+        },
+        (payload) => {
+          // Při jakékoliv změně v chat_rooms aktualizujeme seznam
+          loadChatRooms()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
 
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-700 font-medium">Pro zobrazení zpráv se musíte přihlásit</p>
-            <div className="mt-4 flex justify-center space-x-4">
-              <a href="/login" className="text-blue-600 hover:underline">
-                Přihlásit se
-              </a>
-              <a href="/register" className="text-blue-600 hover:underline">
-                Registrovat se
-              </a>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Zprávy</h1>
+          <p>Pro zobrazení zpráv se musíte přihlásit.</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <MessageSquare className="h-5 w-5 mr-2" />
-            Zprávy
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChatList />
-        </CardContent>
-      </Card>
+      <h1 className="text-2xl font-bold mb-6">Zprávy</h1>
+      <ChatList rooms={chatRooms} loading={loading} />
     </div>
   )
 }

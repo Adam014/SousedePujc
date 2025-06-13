@@ -16,15 +16,22 @@ import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
 import NotificationDropdown from "@/components/notifications/notification-dropdown"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
+import { usePathname } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 
 export default function Header() {
   const { user, logout } = useAuth()
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const pathname = usePathname()
+
+  // Kontrola, zda jsme v chat místnosti
+  const isInChatRoom = pathname?.startsWith("/messages/") || false
 
   // Načtení počtu nepřečtených zpráv
   useEffect(() => {
     if (!user) return
 
+    // Funkce pro načtení počtu nepřečtených zpráv
     const loadUnreadMessages = async () => {
       try {
         const count = await db.getUnreadMessageCount(user.id)
@@ -34,13 +41,56 @@ export default function Header() {
       }
     }
 
+    // Načteme počet nepřečtených zpráv při prvním renderu
     loadUnreadMessages()
 
-    // Nastavení intervalu pro pravidelnou kontrolu nových zpráv
-    const interval = setInterval(loadUnreadMessages, 30000) // každých 30 sekund
+    // Nastavíme interval pro pravidelnou kontrolu nových zpráv
+    const interval = setInterval(loadUnreadMessages, 10000) // každých 10 sekund
 
-    return () => clearInterval(interval)
+    // Nastavíme realtime subscription pro chat_messages
+    const channel = supabase
+      .channel("unread_messages_counter")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_messages",
+        },
+        (payload) => {
+          // Při jakékoliv změně v chat_messages aktualizujeme počet nepřečtených zpráv
+          loadUnreadMessages()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [user])
+
+  // Pokud jsme v chat místnosti, označíme zprávy jako přečtené
+  useEffect(() => {
+    if (user && isInChatRoom) {
+      // Extrahujeme ID místnosti z URL
+      const roomId = pathname?.split("/").pop()
+      if (roomId) {
+        // Označíme zprávy jako přečtené
+        db.markChatMessagesAsRead(roomId, user.id)
+          .then(() => {
+            // Aktualizujeme počet nepřečtených zpráv
+            return db.getUnreadMessageCount(user.id)
+          })
+          .then((count) => {
+            setUnreadMessages(count)
+          })
+          .catch((error) => {
+            console.error("Error marking messages as read:", error)
+          })
+      }
+    }
+  }, [user, isInChatRoom, pathname])
 
   return (
     <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-soft">
