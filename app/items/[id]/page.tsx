@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { MapPin, Shield, CalendarIcon, MessageSquare } from "lucide-react"
+import { MapPin, Shield, CalendarIcon, MessageSquare, Edit } from "lucide-react"
 import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
@@ -185,7 +185,15 @@ export default function ItemDetailPage() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-3xl font-bold text-gray-900">{item.title}</h1>
-                <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                <div className="flex items-center gap-2">
+                  {isOwner && (
+                    <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
+                      <Edit className="h-4 w-4 mr-1" />
+                      Upravit
+                    </Button>
+                  )}
+                  <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                </div>
               </div>
 
               <div className="flex items-center space-x-4 text-gray-600 mb-4">

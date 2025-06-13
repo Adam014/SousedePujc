@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
 import { db } from "@/lib/database"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 interface BookingCalendarProps {
   itemId: string
@@ -16,10 +18,14 @@ interface BookingCalendarProps {
 
 export default function BookingCalendar({ itemId, selectedDates, onSelect }: BookingCalendarProps) {
   const [bookedDates, setBookedDates] = useState<Date[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadBookedDates = async () => {
       try {
+        setLoading(true)
+        setError(null)
         const bookings = await db.getBookingsForItem(itemId)
         const dates: Date[] = []
 
@@ -28,6 +34,11 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
             const start = new Date(booking.start_date)
             const end = new Date(booking.end_date)
 
+            // Zajistíme, že datum je správně nastaveno (bez časové složky)
+            start.setHours(0, 0, 0, 0)
+            end.setHours(0, 0, 0, 0)
+
+            // Přidáme všechny dny mezi začátkem a koncem rezervace
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
               dates.push(new Date(d))
             }
@@ -37,6 +48,9 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
         setBookedDates(dates)
       } catch (error) {
         console.error("Error loading booked dates:", error)
+        setError("Nepodařilo se načíst obsazené termíny")
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -56,6 +70,24 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return date < today || isDateBooked(date)
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-2 text-sm text-gray-500">Načítání kalendáře...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
   }
 
   return (
@@ -78,6 +110,7 @@ export default function BookingCalendar({ itemId, selectedDates, onSelect }: Boo
               textDecoration: "line-through",
             },
           }}
+          fromDate={new Date()}
         />
       </div>
       <div className="mt-2 text-xs text-gray-500">

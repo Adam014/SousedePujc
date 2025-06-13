@@ -2,96 +2,84 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
-import { X, ImageIcon } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Upload, X, AlertCircle } from "lucide-react"
 import Image from "next/image"
-import { supabase } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
+import { supabase } from "@/lib/supabase"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ImageUploadProps {
-  maxImages?: number
-  onImagesChange: (urls: string[]) => void
+  maxImages: number
+  onImagesChange: (images: string[]) => void
   initialImages?: string[]
 }
 
-export default function ImageUpload({ maxImages = 3, onImagesChange, initialImages = [] }: ImageUploadProps) {
+export default function ImageUpload({ maxImages, onImagesChange, initialImages = [] }: ImageUploadProps) {
   const [images, setImages] = useState<string[]>(initialImages)
   const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    // Pokud se změní initialImages, aktualizujeme stav
+    if (initialImages.length > 0) {
+      setImages(initialImages)
+    }
+  }, [initialImages])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    // Kontrola počtu souborů
+    // Kontrola počtu obrázků
     if (images.length + files.length > maxImages) {
-      setError(`Můžete nahrát maximálně ${maxImages} obrázků.`)
+      setError(`Můžete nahrát maximálně ${maxImages} obrázků`)
       return
     }
 
     setUploading(true)
-    setError(null)
+    setError("")
 
     const newImages: string[] = [...images]
-    const uploadPromises = []
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
 
-      // Kontrola typu souboru
-      if (!file.type.startsWith("image/")) {
-        setError("Můžete nahrát pouze obrázky.")
-        setUploading(false)
-        return
-      }
-
       // Kontrola velikosti souboru (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError("Maximální velikost souboru je 5MB.")
-        setUploading(false)
-        return
+        setError(`Soubor ${file.name} je příliš velký. Maximální velikost je 5MB.`)
+        continue
       }
 
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${uuidv4()}.${fileExt}`
-      const filePath = `items/${fileName}`
-
-      uploadPromises.push(
-        supabase.storage
-          .from("images")
-          .upload(filePath, file)
-          .then(({ data, error }) => {
-            if (error) {
-              console.error("Error uploading image:", error)
-              throw error
-            }
-
-            // Získání veřejné URL
-            const {
-              data: { publicUrl },
-            } = supabase.storage.from("images").getPublicUrl(filePath)
-
-            newImages.push(publicUrl)
-          }),
-      )
-    }
-
-    try {
-      await Promise.all(uploadPromises)
-      setImages(newImages)
-      onImagesChange(newImages)
-
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
+      // Kontrola typu souboru
+      if (!file.type.startsWith("image/")) {
+        setError(`Soubor ${file.name} není obrázek.`)
+        continue
       }
-    } catch (error) {
-      console.error("Error uploading images:", error)
-      setError("Došlo k chybě při nahrávání obrázků.")
-    } finally {
-      setUploading(false)
+
+      try {
+        const fileExt = file.name.split(".").pop()
+        const fileName = `${uuidv4()}.${fileExt}`
+        const filePath = `items/${fileName}`
+
+        const { error: uploadError, data } = await supabase.storage.from("images").upload(filePath, file)
+
+        if (uploadError) {
+          throw uploadError
+        }
+
+        const { data: urlData } = supabase.storage.from("images").getPublicUrl(filePath)
+        newImages.push(urlData.publicUrl)
+      } catch (error) {
+        console.error("Error uploading image:", error)
+        setError("Došlo k chybě při nahrávání obrázku. Zkuste to prosím znovu.")
+      }
     }
+
+    setImages(newImages)
+    onImagesChange(newImages)
+    setUploading(false)
+    e.target.value = "" // Reset input
   }
 
   const handleRemoveImage = (index: number) => {
@@ -101,62 +89,51 @@ export default function ImageUpload({ maxImages = 3, onImagesChange, initialImag
     onImagesChange(newImages)
   }
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click()
-  }
-
   return (
     <div className="space-y-4">
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
-        {images.map((url, index) => (
-          <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-gray-200">
-            <Image src={url || "/placeholder.svg"} alt={`Obrázek ${index + 1}`} fill className="object-cover" />
+        {images.map((image, index) => (
+          <div key={index} className="relative aspect-square rounded-md overflow-hidden border">
+            <Image src={image || "/placeholder.svg"} alt={`Obrázek ${index + 1}`} fill className="object-cover" />
             <button
               type="button"
               onClick={() => handleRemoveImage(index)}
-              className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-gray-100"
-              aria-label="Odstranit obrázek"
+              className="absolute top-2 right-2 bg-black bg-opacity-50 rounded-full p-1 text-white hover:bg-opacity-70 transition-all"
             >
-              <X className="h-4 w-4 text-gray-700" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}
 
         {images.length < maxImages && (
-          <button
-            type="button"
-            onClick={handleButtonClick}
-            disabled={uploading}
-            className="aspect-square rounded-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:border-gray-400 transition-colors"
-          >
-            {uploading ? (
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            ) : (
-              <>
-                <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
-                <span className="text-sm text-gray-500">Přidat obrázek</span>
-              </>
-            )}
-          </button>
+          <label className="border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer aspect-square hover:border-gray-400 transition-all">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={uploading}
+              multiple={maxImages - images.length > 1}
+            />
+            <Upload className="h-8 w-8 text-gray-400 mb-2" />
+            <span className="text-sm text-gray-500">
+              {uploading ? "Nahrávání..." : `Přidat obrázek (${images.length}/${maxImages})`}
+            </span>
+          </label>
         )}
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
-
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept="image/*"
-        multiple
-        className="hidden"
-        disabled={uploading || images.length >= maxImages}
-      />
-
-      <div className="text-sm text-gray-500">
-        <p>• Nahrajte až {maxImages} obrázků</p>
+      <div className="text-xs text-gray-500">
         <p>• Podporované formáty: JPG, PNG, GIF</p>
         <p>• Maximální velikost: 5MB</p>
+        <p>• Doporučené rozlišení: min. 800x600px</p>
       </div>
     </div>
   )
