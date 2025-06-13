@@ -671,6 +671,44 @@ export const db = {
     return data
   },
 
+  // Vylepšená metoda pro aktualizaci zprávy - nyní vrací aktualizovanou zprávu
+  async updateChatMessage(messageId: string, newText: string): Promise<ChatMessage> {
+    const updateData = {
+      message: newText,
+      is_edited: true,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .update(updateData)
+      .eq("id", messageId)
+      .select(`
+        *,
+        sender:users(*)
+      `)
+      .single()
+
+    if (error) {
+      console.error("Error updating chat message:", error)
+      throw error
+    }
+
+    return data
+  },
+
+  // Vylepšená metoda pro smazání zprávy - nyní skutečně maže zprávu z databáze
+  async deleteChatMessage(messageId: string): Promise<boolean> {
+    const { error } = await supabase.from("chat_messages").delete().eq("id", messageId)
+
+    if (error) {
+      console.error("Error deleting chat message:", error)
+      throw error
+    }
+
+    return true
+  },
+
   async markChatMessagesAsRead(roomId: string, userId: string): Promise<boolean> {
     const { error } = await supabase
       .from("chat_messages")
@@ -719,20 +757,20 @@ export const db = {
     return count || 0
   },
 
-  // Funkce pro naslouchání novým zprávám v reálném čase
-  subscribeToMessages(roomId: string, callback: (message: ChatMessage) => void) {
+  // Vylepšená funkce pro naslouchání změnám zpráv v reálném čase
+  subscribeToMessages(roomId: string, callback: (payload: any) => void) {
     return supabase
       .channel(`chat_messages:${roomId}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*", // Nasloucháme všem událostem (INSERT, UPDATE, DELETE)
           schema: "public",
           table: "chat_messages",
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          callback(payload.new as ChatMessage)
+          callback(payload)
         },
       )
       .subscribe()

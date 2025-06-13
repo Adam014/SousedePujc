@@ -84,7 +84,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     loadRoomData()
   }, [roomId, user, router, isPopup])
 
-  // Nastavení realtime subscription pro nové zprávy
+  // Vylepšené nastavení realtime subscription pro zprávy
   useEffect(() => {
     if (!user || !roomId) return
 
@@ -102,14 +102,25 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
 
         // Získáme kompletní data odesílatele
         const sender = await db.getUserById(newMessage.sender_id)
-        setMessages((prev) => [...prev, { ...newMessage, sender }])
+
+        // Přidáme novou zprávu do seznamu
+        setMessages((prev) => {
+          // Kontrola, zda zpráva již není v seznamu (prevence duplicit)
+          const exists = prev.some((msg) => msg.id === newMessage.id)
+          if (exists) return prev
+          return [...prev, { ...newMessage, sender }]
+        })
       } else if (eventType === "UPDATE") {
         // Aktualizace zprávy
         const updatedMessage = newRecord as ChatMessage
+
+        // Aktualizujeme zprávu v seznamu
         setMessages((prev) => prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, ...updatedMessage } : msg)))
       } else if (eventType === "DELETE") {
         // Smazání zprávy
         const deletedMessageId = oldRecord.id
+
+        // Odstraníme zprávu ze seznamu
         setMessages((prev) => prev.filter((msg) => msg.id !== deletedMessageId))
       }
     })
@@ -144,8 +155,9 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       setSending(true)
 
       // Optimistické UI aktualizace - přidáme zprávu okamžitě
+      const optimisticId = `temp-${Date.now()}`
       const optimisticMessage: ChatMessage = {
-        id: `temp-${Date.now()}`,
+        id: optimisticId,
         room_id: roomId,
         sender_id: user.id,
         message: newMessage.trim(),
@@ -154,22 +166,24 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
         updated_at: new Date().toISOString(),
         sender: user,
         is_edited: false,
-        is_deleted: false,
       }
 
       setMessages((prev) => [...prev, optimisticMessage])
       setNewMessage("")
 
       // Skutečné odeslání zprávy
-      await db.sendChatMessage({
+      const sentMessage = await db.sendChatMessage({
         room_id: roomId,
         sender_id: user.id,
         message: newMessage.trim(),
       })
+
+      // Nahradíme optimistickou zprávu skutečnou
+      setMessages((prev) => prev.map((msg) => (msg.id === optimisticId ? sentMessage : msg)))
     } catch (error) {
       console.error("Error sending message:", error)
       // Odstraníme optimistickou zprávu v případě chyby
-      setMessages((prev) => prev.filter((msg) => msg.id !== `temp-${Date.now()}`))
+      setMessages((prev) => prev.filter((msg) => !msg.id.toString().startsWith("temp-")))
     } finally {
       setSending(false)
     }
@@ -196,9 +210,15 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       )
 
       // Skutečná aktualizace v databázi
-      await db.updateChatMessage(editingMessageId, editedMessageText)
+      const updatedMessage = await db.updateChatMessage(editingMessageId, editedMessageText)
+
+      // Aktualizace zprávy v seznamu s daty z databáze
+      setMessages((prev) => prev.map((msg) => (msg.id === editingMessageId ? updatedMessage : msg)))
     } catch (error) {
       console.error("Error updating message:", error)
+      // V případě chyby načteme zprávy znovu
+      const messagesData = await db.getChatMessagesByRoom(roomId)
+      setMessages(messagesData)
     } finally {
       setEditingMessageId(null)
       setEditedMessageText("")
@@ -222,17 +242,16 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     if (!messageToDelete) return
 
     try {
-      // Optimistická aktualizace UI
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageToDelete ? { ...msg, message: "Tato zpráva byla smazána", is_deleted: true } : msg,
-        ),
-      )
+      // Optimistická aktualizace UI - odstraníme zprávu ze seznamu
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageToDelete))
 
       // Skutečné smazání v databázi
       await db.deleteChatMessage(messageToDelete)
     } catch (error) {
       console.error("Error deleting message:", error)
+      // V případě chyby načteme zprávy znovu
+      const messagesData = await db.getChatMessagesByRoom(roomId)
+      setMessages(messagesData)
     } finally {
       setMessageToDelete(null)
       setDeleteDialogOpen(false)
@@ -315,7 +334,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                     isCurrentUser
                       ? "bg-blue-500 text-white rounded-br-none"
                       : "bg-gray-100 text-gray-800 rounded-bl-none"
-                  } ${message.is_deleted ? "opacity-70" : ""}`}
+                  }`}
                 >
                   {isEditing ? (
                     <div className="flex flex-col space-y-2">
@@ -347,10 +366,10 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                       <div className="flex items-center justify-between mt-1">
                         <p className={`text-xs ${isCurrentUser ? "text-blue-100" : "text-gray-500"}`}>
                           {formatDistanceToNow(new Date(message.created_at), { addSuffix: true, locale: cs })}
-                          {message.is_edited && !message.is_deleted && " (upraveno)"}
+                          {message.is_edited && " (upraveno)"}
                         </p>
 
-                        {isCurrentUser && !message.is_deleted && (
+                        {isCurrentUser && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

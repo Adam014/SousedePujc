@@ -105,6 +105,8 @@ export interface ChatMessage {
   sender_id: string
   message: string
   is_read: boolean
+  is_edited?: boolean
   created_at: string
+  updated_at?: string
   sender?: User
 }
