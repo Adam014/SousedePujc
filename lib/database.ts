@@ -1,5 +1,6 @@
 import { supabase } from "./supabase"
 import type { User, Item, Category, Booking, Review, Notification, ChatRoom, ChatMessage } from "./types"
+import { filterInappropriateContent } from "./content-filter"
 
 export const db = {
   // Users
@@ -638,15 +639,16 @@ export const db = {
   },
 
   async sendChatMessage(messageData: Omit<ChatMessage, "id" | "created_at" | "is_read">): Promise<ChatMessage> {
-    // Nastavíme zprávu jako nepřečtenou
-    const fullMessageData = {
+    // Filtrování nevhodného obsahu
+    const filteredMessage = {
       ...messageData,
+      message: filterInappropriateContent(messageData.message),
       is_read: false,
     }
 
     const { data, error } = await supabase
       .from("chat_messages")
-      .insert([fullMessageData])
+      .insert([filteredMessage])
       .select(`
         *,
         sender:users(*)
@@ -662,39 +664,58 @@ export const db = {
     await supabase
       .from("chat_rooms")
       .update({
-        last_message: messageData.message,
+        last_message: filteredMessage.message,
         last_message_time: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", messageData.room_id)
+      .eq("id", filteredMessage.room_id)
 
     return data
   },
 
   // Vylepšená metoda pro aktualizaci zprávy - nyní vrací aktualizovanou zprávu
   async updateChatMessage(messageId: string, newText: string): Promise<ChatMessage> {
-    const updateData = {
-      message: newText,
-      is_edited: true,
-      updated_at: new Date().toISOString(),
-    }
+    // Filtrování nevhodného obsahu
+    const filteredText = filterInappropriateContent(newText)
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .update(updateData)
-      .eq("id", messageId)
-      .select(`
-        *,
-        sender:users(*)
-      `)
-      .single()
+    try {
+      // Nejprve zkontrolujeme, zda zpráva existuje
+      const { data: existingMessage, error: fetchError } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("id", messageId)
+        .single()
 
-    if (error) {
-      console.error("Error updating chat message:", error)
+      if (fetchError) {
+        console.error("Error fetching message for update:", fetchError)
+        throw fetchError
+      }
+
+      // Aktualizace zprávy
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .update({
+          message: filteredText,
+          is_edited: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", messageId)
+        .select(`
+          *,
+          sender:users(*)
+        `)
+        .single()
+
+      if (error) {
+        console.error("Error updating chat message:", error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error("Error in updateChatMessage:", error)
       throw error
     }
-
-    return data
   },
 
   // Vylepšená metoda pro smazání zprávy - nyní skutečně maže zprávu z databáze

@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
+import { filterInappropriateContent } from "@/lib/content-filter"
 import type { ChatRoom as ChatRoomType, ChatMessage, User } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -154,13 +155,16 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     try {
       setSending(true)
 
+      // Filtrování nevhodného obsahu pro optimistickou aktualizaci
+      const filteredMessage = filterInappropriateContent(newMessage.trim())
+
       // Optimistické UI aktualizace - přidáme zprávu okamžitě
       const optimisticId = `temp-${Date.now()}`
       const optimisticMessage: ChatMessage = {
         id: optimisticId,
         room_id: roomId,
         sender_id: user.id,
-        message: newMessage.trim(),
+        message: filteredMessage,
         is_read: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -204,7 +208,12 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === editingMessageId
-            ? { ...msg, message: editedMessageText, is_edited: true, updated_at: new Date().toISOString() }
+            ? {
+                ...msg,
+                message: filterInappropriateContent(editedMessageText),
+                is_edited: true,
+                updated_at: new Date().toISOString(),
+              }
             : msg,
         ),
       )
