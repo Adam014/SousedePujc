@@ -1,129 +1,209 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, User, LogOut, Settings, Package, MessageSquare } from "lucide-react"
+import { useAuth } from "@/lib/auth"
+import { db } from "@/lib/database"
+import NotificationDropdown from "@/components/notifications/notification-dropdown"
+import SearchAutocomplete from "@/components/search/search-autocomplete"
+import { usePathname } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 
 export default function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user, logout } = useAuth()
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const pathname = usePathname()
+
+  // Kontrola, zda jsme v chat místnosti
+  const isInChatRoom = pathname?.startsWith("/messages/") || false
+
+  // Načtení počtu nepřečtených zpráv
+  useEffect(() => {
+    if (!user) return
+
+    // Funkce pro načtení počtu nepřečtených zpráv
+    const loadUnreadMessages = async () => {
+      try {
+        const count = await db.getUnreadMessageCount(user.id)
+        setUnreadMessages(count)
+      } catch (error) {
+        console.error("Error loading unread messages count:", error)
+      }
+    }
+
+    // Načteme počet nepřečtených zpráv při prvním renderu
+    loadUnreadMessages()
+
+    // Nastavíme realtime subscription pro všechny chat_messages
+    const channel = supabase
+      .channel("header_unread_messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_messages",
+        },
+        () => {
+          // Při jakékoliv změně v chat_messages aktualizujeme počet nepřečtených zpráv
+          loadUnreadMessages()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  // Pokud jsme v chat místnosti, označíme zprávy jako přečtené
+  useEffect(() => {
+    if (user && isInChatRoom) {
+      // Extrahujeme ID místnosti z URL
+      const roomId = pathname?.split("/").pop()
+      if (roomId) {
+        // Označíme zprávy jako přečtené s malým zpožděním
+        const timer = setTimeout(async () => {
+          try {
+            await db.markChatMessagesAsRead(roomId, user.id)
+            // Aktualizujeme počet nepřečtených zpráv
+            const count = await db.getUnreadMessageCount(user.id)
+            setUnreadMessages(count)
+          } catch (error) {
+            console.error("Error marking messages as read:", error)
+          }
+        }, 1000)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [user, isInChatRoom, pathname])
 
   return (
-    <header className="bg-white">
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Top">
-        <div className="w-full py-6 flex items-center justify-between border-b border-gray-500 lg:border-none">
-          <div className="flex items-center">
-            <Link href="/">
-              <span className="sr-only">Workflow</span>
-              <img
-                className="h-10 w-auto"
-                src="https://tailwindui.com/img/logos/workflow-mark.svg?color=indigo&shade=500"
-                alt=""
-              />
-            </Link>
-            <div className="hidden ml-10 space-x-8 lg:block">
-              <Link
-                href="/"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Home
-              </Link>
-              <Link
-                href="/about"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                About
-              </Link>
-              <Link
-                href="/contact"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Contact
-              </Link>
-              <Link
-                href="/map"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Mapa
-              </Link>
+    <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-soft">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center space-x-3 group">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-soft group-hover:shadow-md transition-all duration-300">
+              <Package className="h-6 w-6 text-white" />
             </div>
-          </div>
-          <div className="ml-10 space-x-4">
-            <Link
-              href="/login"
-              className="inline-block bg-indigo-500 py-2 px-4 border border-transparent rounded-md text-base font-medium text-white hover:bg-indigo-700"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="inline-block bg-white py-2 px-4 border border-gray-300 rounded-md text-base font-medium text-gray-500 hover:bg-gray-100"
-            >
-              Sign up
-            </Link>
-          </div>
-        </div>
-        <div className="lg:hidden">
-          <button
-            type="button"
-            className="bg-white rounded-md p-2 inline-flex items-center justify-center text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-            aria-expanded="false"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            <span className="sr-only">Open menu</span>
-            {/* Heroicon name: outline/menu */}
-            <svg
-              className="h-6 w-6"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-      </nav>
+            <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              SousedePůjč
+            </span>
+          </Link>
 
-      {/* Mobile menu, show/hide based on menu state. */}
-      <div className={`${mobileMenuOpen ? "block" : "hidden"} lg:hidden`}>
-        <div className="pt-4 pb-3 border-t border-gray-200">
-          <div className="mt-3 space-y-1">
-            <Link
-              href="/"
-              className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              Home
-            </Link>
-            <Link
-              href="/about"
-              className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              About
-            </Link>
-            <Link
-              href="/contact"
-              className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              Contact
-            </Link>
-            <Link
-              href="/map"
-              className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-            >
-              Mapa
-            </Link>
-            <Link
-              href="/login"
-              className="inline-block bg-indigo-500 py-2 px-4 border border-transparent rounded-md text-base font-medium text-white hover:bg-indigo-700"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="inline-block bg-white py-2 px-4 border border-gray-300 rounded-md text-base font-medium text-gray-500 hover:bg-gray-100"
-            >
-              Sign up
-            </Link>
+          {/* Vyhledávání */}
+          <div className="hidden md:flex flex-1 max-w-md mx-8">
+            <SearchAutocomplete className="w-full" />
+          </div>
+
+          {/* Navigace */}
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link href="/items/new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Přidat předmět
+                  </Link>
+                </Button>
+
+                <Button asChild variant="ghost" className="relative" aria-label="Zprávy">
+                  <Link href="/messages">
+                    <MessageSquare className="h-5 w-5" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
+                  </Link>
+                </Button>
+
+                <NotificationDropdown />
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.name} />
+                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <div className="flex items-center justify-start gap-2 p-2">
+                      <div className="flex flex-col space-y-1 leading-none">
+                        <p className="font-medium">{user.name}</p>
+                        <p className="w-[200px] truncate text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile">
+                        <User className="mr-2 h-4 w-4" />
+                        Můj profil
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile?tab=items">
+                        <Package className="mr-2 h-4 w-4" />
+                        Moje předměty
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile?tab=bookings">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Moje rezervace
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/messages">
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Zprávy
+                        {unreadMessages > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                            {unreadMessages}
+                          </span>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                    {user.is_admin && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin">
+                          <Settings className="mr-2 h-4 w-4" />
+                          Administrace
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Odhlásit se
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Button asChild variant="ghost">
+                  <Link href="/login">Přihlásit se</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/register">Registrovat se</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

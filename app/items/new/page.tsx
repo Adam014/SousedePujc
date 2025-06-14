@@ -1,364 +1,323 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { toast } from "sonner"
-import { v4 as uuidv4 } from "uuid"
-import type { Item } from "@/types"
-import { createItem } from "@/actions/item"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { UploadDropzone } from "@/components/upload-dropzone"
-import { deleteFile } from "@/lib/s3"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ImageIcon } from "@radix-ui/react-icons"
-import { Progress } from "@/components/ui/progress"
-import LocationPicker from "@/components/map/location-picker"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft } from "lucide-react"
+import type { Category } from "@/lib/types"
+import { db } from "@/lib/database"
+import { useAuth } from "@/lib/auth"
+import AddressAutocomplete from "@/components/address/address-autocomplete"
+import ImageUpload from "@/components/items/image-upload"
 
-const CreateItemFormSchema = z.object({
-  title: z.string().min(2, {
-    message: "Název musí mít alespoň 2 znaky.",
-  }),
-  description: z.string().min(10, {
-    message: "Popis musí mít alespoň 10 znaků.",
-  }),
-  categoryId: z.string().min(1, {
-    message: "Vyberte kategorii.",
-  }),
-  condition: z.string().min(1, {
-    message: "Vyberte stav.",
-  }),
-  dailyRate: z.coerce.number().min(1, {
-    message: "Cena musí být alespoň 1 Kč.",
-  }),
-  depositAmount: z.coerce.number().min(0, {
-    message: "Záloha musí být alespoň 0 Kč.",
-  }),
-  location: z.string().min(2, {
-    message: "Zadejte lokalitu.",
-  }),
-})
-
-interface CreateItemFormValues extends z.infer<typeof CreateItemFormSchema> {}
-
-const conditions = [
-  {
-    label: "Nové",
-    value: "new",
-  },
-  {
-    label: "Použité",
-    value: "used",
-  },
-  {
-    label: "Poškozené",
-    value: "damaged",
-  },
+const conditionOptions = [
+  { value: "excellent", label: "Výborný" },
+  { value: "very_good", label: "Velmi dobrý" },
+  { value: "good", label: "Dobrý" },
+  { value: "fair", label: "Uspokojivý" },
+  { value: "poor", label: "Špatný" },
 ]
 
-function generateRandomId() {
-  return uuidv4()
-}
-
-const ItemForm = () => {
+export default function NewItemPage() {
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const { data: session, status } = useSession()
-  const [uploadedImages, setUploadedImages] = useState<string[]>([])
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
-  const [progress, setProgress] = useState<number>(0)
-  const [categoryId, setCategoryId] = useState<string>("")
-  const [location, setLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
-
-  const user = session?.user
-
-  const form = useForm<CreateItemFormValues>({
-    resolver: zodResolver(CreateItemFormSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      categoryId: "",
-      condition: "",
-      dailyRate: 1,
-      depositAmount: 0,
-      location: "",
-    },
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [isFree, setIsFree] = useState(false)
+  const [images, setImages] = useState<string[]>([])
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    category_id: "",
+    condition: "good",
+    daily_rate: "",
+    deposit_amount: "",
+    location: "",
   })
 
-  async function onSubmit(data: CreateItemFormValues) {
-    setIsSubmitting(true)
-    if (!user) {
-      toast.error("Musíte být přihlášený.")
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login")
       return
     }
 
-    if (uploadedImages.length === 0) {
-      toast.error("Nahrajte alespoň jednu fotku.")
+    if (user) {
+      const loadCategories = async () => {
+        try {
+          const data = await db.getCategories()
+          setCategories(data)
+        } catch (error) {
+          console.error("Error loading categories:", error)
+          setError("Chyba při načítání kategorií")
+        }
+      }
+      loadCategories()
+    }
+  }, [user, authLoading, router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setSuccess("")
+    setLoading(true)
+
+    if (!user) {
+      setError("Musíte být přihlášeni")
+      setLoading(false)
+      return
+    }
+
+    // Validace
+    if (!formData.title.trim()) {
+      setError("Název předmětu je povinný")
+      setLoading(false)
+      return
+    }
+
+    if (!formData.category_id) {
+      setError("Vyberte kategorii")
+      setLoading(false)
       return
     }
 
     try {
-      toast.loading("Vytváříme inzerát...")
-
-      const { title, description, condition, dailyRate, depositAmount } = data
-
-      const itemData: Omit<Item, "id" | "created_at" | "updated_at"> = {
+      const itemData = {
         owner_id: user.id,
-        category_id: categoryId,
-        title,
-        description,
-        condition: condition as Item["condition"],
-        daily_rate: dailyRate,
-        deposit_amount: depositAmount,
+        category_id: formData.category_id,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        condition: formData.condition as "excellent" | "very_good" | "good" | "fair" | "poor",
+        daily_rate: isFree ? 0 : Number.parseFloat(formData.daily_rate) || 0,
+        deposit_amount: Number.parseFloat(formData.deposit_amount) || 0,
         is_available: true,
-        location: location?.address || "",
-        location_lat: location?.lat,
-        location_lng: location?.lng,
-        images: uploadedImages,
+        location: formData.location.trim(),
+        images: images.length > 0 ? images : ["/placeholder.svg?height=300&width=400"],
       }
 
-      await createItem(itemData)
+      await db.createItem(itemData)
+      setSuccess("Předmět byl úspěšně vytvořen!")
 
-      toast.success("Inzerát byl úspěšně vytvořen.")
-      router.push("/")
-      router.refresh()
-    } catch (error: any) {
-      toast.error(error?.message || "Při vytváření inzerátu došlo k chybě. Zkuste to prosím znovu.")
+      // Přesměrování po 2 sekundách
+      setTimeout(() => {
+        router.push("/profile?tab=items")
+      }, 2000)
+    } catch (error) {
+      console.error("Error creating item:", error)
+      setError("Došlo k chybě při vytváření předmětu. Zkuste to prosím znovu.")
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
-  if (status === "loading") {
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleFreeChange = (checked: boolean) => {
+    setIsFree(checked)
+    if (checked) {
+      setFormData((prev) => ({ ...prev, daily_rate: "0" }))
+    }
+  }
+
+  const handleImagesChange = (newImages: string[]) => {
+    setImages(newImages)
+  }
+
+  if (authLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <Skeleton className="h-6 w-80" />
-          </CardTitle>
-          <CardDescription>
-            <Skeleton className="h-4 w-52" />
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex items-center">
-            <Skeleton className="h-12 w-12 rounded-full" />
-            <div className="space-y-1 pl-4">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-40" />
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
     )
   }
 
-  if (status === "unauthenticated") {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Nemáte oprávnění k zobrazení této stránky.</CardTitle>
-          <CardDescription>Přihlaste se pro pokračování.</CardDescription>
-        </CardHeader>
-      </Card>
-    )
+  if (!user) {
+    return null
   }
 
   return (
-    <div className="container relative">
+    <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="mb-6">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Zpět
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Nový inzerát</CardTitle>
-          <CardDescription>Zde můžete vytvořit nový inzerát.</CardDescription>
+          <CardTitle className="text-2xl">Přidat nový předmět</CardTitle>
         </CardHeader>
-        <CardContent className="pl-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Název</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Název inzerátu" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kategorie</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value)
-                          setCategoryId(value)
-                        }}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Vyberte kategorii" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="6545989944b8464196999999">Nářadí</SelectItem>
-                          <SelectItem value="6545989d44b846419699999a">Stroje</SelectItem>
-                          <SelectItem value="654598a144b846419699999b">Dílna</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Popis</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Podrobný popis inzerátu" className="resize-none" {...field} />
-                    </FormControl>
-                    <FormDescription>Napište podrobný popis inzerátu.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertDescription className="text-green-800">{success}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="title">Název předmětu *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                placeholder="Např. Aku vrtačka Bosch"
+                required
               />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="condition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Stav</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Vyberte stav" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {conditions.map((condition) => (
-                            <SelectItem key={condition.value} value={condition.value}>
-                              {condition.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="dailyRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cena za den</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="Cena za den" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="depositAmount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Záloha</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="Výše zálohy" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lokalita</FormLabel>
-                      <FormControl>
-                        <Input type="text" placeholder="Město, ulice, atd." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div>
-                <Label htmlFor="location">Poloha na mapě</Label>
-                <LocationPicker value={location} onChange={setLocation} />
-              </div>
-              <div>
-                <Label>Fotky</Label>
-                <UploadDropzone value={uploadedImages} onChange={setUploadedImages} setProgress={setProgress} />
-                {progress > 0 && progress < 100 ? <Progress value={progress} className="mt-2" /> : null}
-                {uploadedImages.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-3 gap-4">
-                    {uploadedImages.map((image) => (
-                      <div key={image} className="relative">
-                        <img
-                          src={image || "/placeholder.svg"}
-                          alt="Uploaded"
-                          className="h-32 w-full rounded-md object-cover"
-                        />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute right-2 top-2 rounded-full opacity-75 hover:opacity-100"
-                          onClick={async () => {
-                            try {
-                              await deleteFile(image)
-                              setUploadedImages(uploadedImages.filter((img) => img !== image))
-                              toast.success("Fotka byla smazána.")
-                            } catch (error) {
-                              toast.error("Chyba při mazání fotky.")
-                            }
-                          }}
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Popis</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                placeholder="Popište váš předmět, jeho stav, příslušenství..."
+                rows={4}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Kategorie *</Label>
+                <Select
+                  value={formData.category_id}
+                  onValueChange={(value) => handleInputChange("category_id", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vyberte kategorii" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
                     ))}
-                  </div>
-                ) : null}
+                  </SelectContent>
+                </Select>
               </div>
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting ? "Vytváříme inzerát..." : "Vytvořit inzerát"}
+
+              <div className="space-y-2">
+                <Label htmlFor="condition">Stav *</Label>
+                <Select
+                  value={formData.condition}
+                  onValueChange={(value) => handleInputChange("condition", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conditionOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_free"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  checked={isFree}
+                  onChange={(e) => handleFreeChange(e.target.checked)}
+                />
+                <Label htmlFor="is_free">Nabídnout zdarma</Label>
+              </div>
+
+              {!isFree && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="daily_rate">Cena za den (Kč)</Label>
+                    <Input
+                      id="daily_rate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.daily_rate}
+                      onChange={(e) => handleInputChange("daily_rate", e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deposit_amount">Kauce (Kč)</Label>
+                    <Input
+                      id="deposit_amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.deposit_amount}
+                      onChange={(e) => handleInputChange("deposit_amount", e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Lokalita</Label>
+              <AddressAutocomplete
+                value={formData.location}
+                onChange={(value) => handleInputChange("location", value)}
+                placeholder="Začněte psát adresu..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Fotografie</Label>
+              <ImageUpload maxImages={3} onImagesChange={handleImagesChange} />
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">Tipy pro úspěšné půjčování:</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Přidejte kvalitní fotografie ze všech stran</li>
+                <li>• Popište stav předmětu co nejpřesněji</li>
+                <li>• Uveďte všechno příslušenství, které je součástí půjčení</li>
+                <li>• Stanovte reálnou cenu a kauci</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-4">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="flex-1">
+                Zrušit
               </Button>
-            </form>
-          </Form>
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? "Vytváření..." : "Vytvořit předmět"}
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
     </div>
   )
 }
-
-export default ItemForm

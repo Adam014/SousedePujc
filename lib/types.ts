@@ -39,8 +39,6 @@ export interface Item {
   deposit_amount: number
   is_available: boolean
   location?: string
-  location_lat?: number
-  location_lng?: number
   images: string[]
   created_at: string
   updated_at: string
