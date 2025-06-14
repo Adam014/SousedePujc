@@ -2,3 +2,4 @@
 7. Pridat Geo API na doplnovani adres jak v pridavani predmetu tak na profilu
 3. Mapy - pridat
 4. Fixnout realtime momentalne nefunguje
+5. Zrychlit web a opravit caste loadingy
