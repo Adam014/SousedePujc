@@ -493,14 +493,28 @@ export const db = {
     // Po vytvoření rezervace vytvoříme chatovací místnost
     if (data && data.item) {
       try {
-        await this.createChatRoom({
-          booking_id: data.id,
-          item_id: data.item_id,
-          owner_id: data.item.owner_id,
-          borrower_id: data.borrower_id,
-        })
+        // Check if chat room already exists for this item and users
+        const existingRoom = await this.findExistingChatRoom(data.item_id, data.item.owner_id, data.borrower_id)
+        
+        if (!existingRoom) {
+          await this.createChatRoom({
+            booking_id: data.id, // Now we have the booking ID
+            item_id: data.item_id,
+            owner_id: data.item.owner_id,
+            borrower_id: data.borrower_id,
+          })
+        } else {
+          // Update existing room with booking_id if it doesn't have one
+          if (!existingRoom.booking_id) {
+            await supabase
+              .from("chat_rooms")
+              .update({ booking_id: data.id })
+              .eq("id", existingRoom.id)
+          }
+        }
       } catch (chatError) {
         console.error("Error creating chat room:", chatError)
+        // Don't fail the booking creation if chat room creation fails
       }
     }
 
@@ -508,6 +522,24 @@ export const db = {
     cache.delete(`bookings-user-${bookingData.borrower_id}`)
     if (data.item?.owner_id) {
       cache.delete(`bookings-owner-${data.item.owner_id}`)
+    }
+
+    return data
+  },
+
+  // Helper function to find existing chat room
+  async findExistingChatRoom(itemId: string, ownerId: string, borrowerId: string): Promise<ChatRoom | null> {
+    const { data, error } = await supabase
+      .from("chat_rooms")
+      .select("*")
+      .eq("item_id", itemId)
+      .eq("owner_id", ownerId)
+      .eq("borrower_id", borrowerId)
+      .maybeSingle()
+
+    if (error) {
+      console.error("Error finding existing chat room:", error)
+      return null
     }
 
     return data
