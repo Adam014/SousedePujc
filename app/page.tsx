@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, memo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
-import dynamic from "next/dynamic"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
 import ItemGrid from "@/components/items/item-grid"
@@ -11,78 +10,22 @@ import SearchAutocomplete from "@/components/search/search-autocomplete"
 import ItemFilters, { type FilterValues, type SortValue } from "@/components/items/item-filters"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { ServerOffIcon as DatabaseOff, RefreshCcw } from 'lucide-react'
-
-// Lazy load pagination component
-const Pagination = dynamic(() => import("@/components/ui/pagination").then(mod => ({ 
-  default: memo(mod.Pagination) 
-})), {
-  loading: () => <div className="h-12 animate-pulse bg-gray-200 rounded" />
-})
+import { ServerOffIcon as DatabaseOff, RefreshCcw } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 const ITEMS_PER_PAGE = 12
 
-// Memoized filter function
-const createFilterFunction = (selectedCategory: string | null, searchQuery: string, filters: FilterValues, sortBy: SortValue) => {
-  return (items: Item[]) => {
-    let result = [...items]
-
-    // Filtrování podle kategorie
-    if (selectedCategory) {
-      result = result.filter((item) => item.category_id === selectedCategory)
-    }
-
-    // Filtrování podle vyhledávání
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(
-        (item) =>
-          item.title.toLowerCase().includes(query) ||
-          item.description?.toLowerCase().includes(query) ||
-          item.category?.name.toLowerCase().includes(query),
-      )
-    }
-
-    // Filtrování podle ceny
-    const [minPrice, maxPrice] = filters.priceRange
-    result = result.filter((item) => {
-      const price = item.price || 0
-      return price >= minPrice && price <= maxPrice
-    })
-
-    // Filtrování podle dostupnosti
-    if (filters.availability === "available") {
-      result = result.filter((item) => item.is_available)
-    } else if (filters.availability === "unavailable") {
-      result = result.filter((item) => !item.is_available)
-    }
-
-    // Řazení
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case "oldest":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case "price_asc":
-          return (a.price || 0) - (b.price || 0)
-        case "price_desc":
-          return (b.price || 0) - (a.price || 0)
-        case "name_asc":
-          return a.title.localeCompare(b.title)
-        case "name_desc":
-          return b.title.localeCompare(a.title)
-        default:
-          return 0
-      }
-    })
-
-    return result
-  }
-}
-
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([])
+  const [filteredItems, setFilteredItems] = useState<Item[]>([])
+  const [displayedItems, setDisplayedItems] = useState<Item[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
@@ -97,40 +40,7 @@ export default function HomePage() {
 
   const searchParams = useSearchParams()
 
-  // Memoized filter function
-  const filterFunction = useMemo(
-    () => createFilterFunction(selectedCategory, searchQuery, filters, sortBy),
-    [selectedCategory, searchQuery, filters, sortBy]
-  )
-
-  // Memoized filtered items
-  const filteredItems = useMemo(() => {
-    if (items.length === 0) return []
-    return filterFunction(items)
-  }, [items, filterFunction])
-
-  // Memoized displayed items for current page
-  const displayedItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    return filteredItems.slice(startIndex, endIndex)
-  }, [filteredItems, currentPage])
-
-  // Memoized total pages
-  const totalPages = useMemo(() => Math.ceil(filteredItems.length / ITEMS_PER_PAGE), [filteredItems.length])
-
-  // Memoized min/max price
-  const minMaxPrice = useMemo(() => {
-    if (items.length === 0) return { min: 0, max: 10000 }
-
-    const prices = items.map((item) => item.price || 0)
-    return {
-      min: Math.min(...prices),
-      max: Math.max(...prices, 1000),
-    }
-  }, [items])
-
-  const loadItems = useCallback(async () => {
+  const loadItems = async () => {
     try {
       setLoading(true)
       setError("")
@@ -150,6 +60,7 @@ export default function HomePage() {
     } catch (error: any) {
       console.error("Error loading items:", error)
 
+      // Kontrola, zda jde o síťovou chybu (Supabase nedostupný)
       const isNetworkErr =
         error.message?.includes("NetworkError") ||
         error.message?.includes("Failed to fetch") ||
@@ -160,11 +71,11 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
     loadItems()
-  }, [loadItems])
+  }, [])
 
   useEffect(() => {
     const searchFromUrl = searchParams.get("search")
@@ -173,41 +84,150 @@ export default function HomePage() {
     }
   }, [searchParams])
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1)
+  // Funkce pro filtrování a řazení předmětů
+  const filterAndSortItems = useMemo(() => {
+    return (items: Item[]) => {
+      let result = [...items]
+
+      // Filtrování podle kategorie
+      if (selectedCategory) {
+        result = result.filter((item) => item.category_id === selectedCategory)
+      }
+
+      // Filtrování podle vyhledávání
+      if (searchQuery) {
+        result = result.filter(
+          (item) =>
+            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.category?.name.toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      }
+
+      // Filtrování podle ceny
+      result = result.filter((item) => {
+        const price = item.price || 0
+        return price >= filters.priceRange[0] && price <= filters.priceRange[1]
+      })
+
+      // Filtrování podle dostupnosti
+      if (filters.availability === "available") {
+        result = result.filter((item) => item.is_available)
+      } else if (filters.availability === "unavailable") {
+        result = result.filter((item) => !item.is_available)
+      }
+
+      // Řazení
+      result.sort((a, b) => {
+        switch (sortBy) {
+          case "newest":
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          case "oldest":
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          case "price_asc":
+            return (a.price || 0) - (b.price || 0)
+          case "price_desc":
+            return (b.price || 0) - (a.price || 0)
+          case "name_asc":
+            return a.title.localeCompare(b.title)
+          case "name_desc":
+            return b.title.localeCompare(a.title)
+          default:
+            return 0
+        }
+      })
+
+      return result
+    }
   }, [selectedCategory, searchQuery, filters, sortBy])
 
-  // Memoized callbacks
-  const handleCategoryChange = useCallback((category: string | null) => {
-    setSelectedCategory(category)
-  }, [])
+  // Aplikace filtrů a řazení při změně dat
+  useEffect(() => {
+    if (items.length > 0) {
+      const filtered = filterAndSortItems(items)
+      setFilteredItems(filtered)
+      setCurrentPage(1) // Reset na první stránku při změně filtrů
+    }
+  }, [items, filterAndSortItems])
 
-  const handleSearchChange = useCallback((query: string) => {
-    setSearchQuery(query)
-  }, [])
+  // Stránkování
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    setDisplayedItems(filteredItems.slice(startIndex, endIndex))
+  }, [filteredItems, currentPage])
 
-  const handleFilterChange = useCallback((newFilters: FilterValues) => {
-    setFilters(newFilters)
-  }, [])
+  // Výpočet celkového počtu stránek
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
 
-  const handleSortChange = useCallback((newSort: SortValue) => {
-    setSortBy(newSort)
-  }, [])
+  // Funkce pro generování stránek pro paginaci
+  const generatePaginationItems = () => {
+    const pages = []
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
+    // Vždy zobrazit první stránku
+    pages.push(
+      <PaginationItem key="page-1">
+        <PaginationLink isActive={currentPage === 1} onClick={() => setCurrentPage(1)}>
+          1
+        </PaginationLink>
+      </PaginationItem>,
+    )
 
-  const resetFilters = useCallback(() => {
-    setSelectedCategory(null)
-    setSearchQuery("")
-    setFilters({
-      priceRange: [minMaxPrice.min, minMaxPrice.max],
-      availability: "all",
-    })
-    setSortBy("newest")
-  }, [minMaxPrice])
+    // Přidat elipsu, pokud je aktuální stránka > 3
+    if (currentPage > 3) {
+      pages.push(
+        <PaginationItem key="ellipsis-1">
+          <span className="flex h-9 w-9 items-center justify-center">...</span>
+        </PaginationItem>,
+      )
+    }
+
+    // Přidat stránky kolem aktuální stránky
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      if (i === 1 || i === totalPages) continue // Přeskočit první a poslední stránku, ty jsou přidány zvlášť
+
+      pages.push(
+        <PaginationItem key={`page-${i}`}>
+          <PaginationLink isActive={currentPage === i} onClick={() => setCurrentPage(i)}>
+            {i}
+          </PaginationLink>
+        </PaginationItem>,
+      )
+    }
+
+    // Přidat elipsu, pokud je aktuální stránka < totalPages - 2
+    if (currentPage < totalPages - 2) {
+      pages.push(
+        <PaginationItem key="ellipsis-2">
+          <span className="flex h-9 w-9 items-center justify-center">...</span>
+        </PaginationItem>,
+      )
+    }
+
+    // Přidat poslední stránku, pokud existuje více než 1 stránka
+    if (totalPages > 1) {
+      pages.push(
+        <PaginationItem key={`page-${totalPages}`}>
+          <PaginationLink isActive={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>
+            {totalPages}
+          </PaginationLink>
+        </PaginationItem>,
+      )
+    }
+
+    return pages
+  }
+
+  // Výpočet min a max ceny pro filtry
+  const minMaxPrice = useMemo(() => {
+    if (items.length === 0) return { min: 0, max: 10000 }
+
+    const prices = items.map((item) => item.price || 0)
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices, 1000), // Minimálně 1000 Kč jako maximum
+    }
+  }, [items])
 
   if (loading) {
     return (
@@ -246,7 +266,7 @@ export default function HomePage() {
           </div>
           <div className="mt-4 flex justify-center">
             <Button
-              onClick={loadItems}
+              onClick={() => loadItems()}
               variant={isNetworkError ? "destructive" : "default"}
               className="flex items-center"
             >
@@ -256,6 +276,7 @@ export default function HomePage() {
           </div>
         </Alert>
 
+        {/* Hero sekce pro případ výpadku */}
         {isNetworkError && (
           <div className="text-center mb-12 py-8">
             <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-6">
@@ -283,20 +304,24 @@ export default function HomePage() {
           peníze a životní prostředí.
         </p>
 
-        <SearchAutocomplete placeholder="Co hledáte?" onSearch={handleSearchChange} className="max-w-md mx-auto" />
+        {/* Vyhledávání */}
+        <SearchAutocomplete placeholder="Co hledáte?" onSearch={setSearchQuery} className="max-w-md mx-auto" />
       </div>
 
-      <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
+      {/* Filtry */}
+      <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
 
+      {/* Pokročilé filtry a řazení */}
       <ItemFilters
-        onFilterChange={handleFilterChange}
-        onSortChange={handleSortChange}
+        onFilterChange={setFilters}
+        onSortChange={setSortBy}
         minPrice={minMaxPrice.min}
         maxPrice={minMaxPrice.max}
         activeFilters={filters}
         activeSort={sortBy}
       />
 
+      {/* Nadpis sekce */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold">
           {selectedCategory || searchQuery || Object.keys(filters).length > 0
@@ -306,24 +331,49 @@ export default function HomePage() {
         </h2>
       </div>
 
+      {/* Zobrazení předmětů */}
       {filteredItems.length > 0 ? (
         <>
           <ItemGrid items={displayedItems} />
 
+          {/* Stránkování */}
           {totalPages > 1 && (
-            <Pagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-              className="mt-8"
-            />
+            <Pagination className="mt-8">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  />
+                </PaginationItem>
+
+                {generatePaginationItems()}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           )}
         </>
       ) : (
         <div className="text-center py-16 bg-gray-50 rounded-lg">
           <h3 className="text-xl font-medium text-gray-700 mb-2">Žádné předměty nenalezeny</h3>
           <p className="text-gray-500 mb-6">Zkuste upravit filtry nebo vyhledávání pro zobrazení více předmětů.</p>
-          <Button onClick={resetFilters}>
+          <Button
+            onClick={() => {
+              setSelectedCategory(null)
+              setSearchQuery("")
+              setFilters({
+                priceRange: [minMaxPrice.min, minMaxPrice.max],
+                availability: "all",
+              })
+              setSortBy("newest")
+            }}
+          >
             Resetovat všechny filtry
           </Button>
         </div>

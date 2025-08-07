@@ -9,22 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  MapPin,
-  Shield,
-  CalendarIcon,
-  MessageSquare,
-  Edit,
-  Trash2,
-  AlertTriangle,
-  Star,
-  Clock,
-  CheckCircle,
-  ShieldCheck,
-  Tag,
-  Truck,
-  Percent,
-} from "lucide-react"
+import { MapPin, Shield, CalendarIcon, MessageSquare, Edit, Trash2, AlertTriangle, Star, Clock, CheckCircle, ShieldCheck, Tag, Truck, Percent } from 'lucide-react'
 import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
@@ -181,7 +166,7 @@ export default function ItemDetailPage() {
         is_read: false,
       })
 
-      // Vytvoření chat roomu pro komunikaci
+      // Vytvoření chat roomu pro komunikaci - now returns just the ID
       const chatRoomId = await db.createChatRoom({
         item_id: item.id,
         owner_id: item.owner_id,
@@ -193,7 +178,7 @@ export default function ItemDetailPage() {
         await db.sendChatMessage({
           room_id: chatRoomId,
           sender_id: user.id,
-          content: `Zdravím, mám zájem o půjčení předmětu "${item.title}" od ${selectedDates.from.toLocaleDateString("cs-CZ")} do ${selectedDates.to.toLocaleDateString("cs-CZ")}.${message ? ` ${message}` : ""}`,
+          message: `Zdravím, mám zájem o půjčení předmětu "${item.title}" od ${selectedDates.from.toLocaleDateString("cs-CZ")} do ${selectedDates.to.toLocaleDateString("cs-CZ")}.${message ? ` ${message}` : ""}`,
         })
       }
 
@@ -632,44 +617,6 @@ export default function ItemDetailPage() {
                       />
                     </div>
                   </div>
-
-                  {/* {selectedDates.from && selectedDates.to && (
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span>Doba půjčení:</span>
-                        <span className="font-medium">{days} dní</span>
-                      </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span>Cena za den:</span>
-                        <span>{item.daily_rate} Kč</span>
-                      </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span>Základní cena:</span>
-                        <span>{basePrice} Kč</span>
-                      </div>
-
-                      {discount && (
-                        <div className="flex justify-between items-center mb-2 text-green-600">
-                          <span>Sleva ({discount.percentage}%):</span>
-                          <span>-{discountAmount} Kč</span>
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center font-bold text-lg border-t border-blue-200 pt-2 mt-2">
-                        <span>Celkem:</span>
-                        <span>{finalPrice} Kč</span>
-                      </div>
-                      {item.deposit_amount > 0 && (
-                        <div className="flex justify-between items-center text-sm text-gray-600 mt-1">
-                          <div className="flex items-center">
-                            <span>Kauce:</span>
-                            <span className="ml-1 text-xs text-gray-500">(vratná)</span>
-                          </div>
-                          <span>{item.deposit_amount} Kč</span>
-                        </div>
-                      )}
-                    </div>
-                  )} */}
 
                   <div>
                     <Label htmlFor="message">Zpráva pro majitele (volitelné)</Label>

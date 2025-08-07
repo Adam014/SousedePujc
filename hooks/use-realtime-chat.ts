@@ -15,48 +15,30 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasMore, setHasMore] = useState(true)
   const channelRef = useRef<any>(null)
-  const loadingRef = useRef(false)
 
-  // Optimized message loading with pagination
-  const loadMessages = useCallback(async (offset: number = 0, limit: number = 50) => {
-    if (!roomId || loadingRef.current) return
+  // Načtení zpráv
+  const loadMessages = useCallback(async () => {
+    if (!roomId) return
 
     try {
-      loadingRef.current = true
-      if (offset === 0) setLoading(true)
-      
-      const messagesData = await db.getChatMessagesByRoom(roomId, limit, offset)
-      
-      if (offset === 0) {
-        setMessages(messagesData)
-      } else {
-        setMessages(prev => [...messagesData, ...prev])
-      }
-      
-      setHasMore(messagesData.length === limit)
+      setLoading(true)
+      const messagesData = await db.getChatMessagesByRoom(roomId)
+      setMessages(messagesData)
     } catch (error) {
       console.error("Error loading messages:", error)
     } finally {
       setLoading(false)
-      loadingRef.current = false
     }
   }, [roomId])
 
-  // Load more messages (for infinite scroll)
-  const loadMoreMessages = useCallback(() => {
-    if (hasMore && !loadingRef.current) {
-      loadMessages(messages.length)
-    }
-  }, [hasMore, messages.length, loadMessages])
-
-  // Optimized realtime connection
+  // Inicializace realtime připojení
   useEffect(() => {
     if (!roomId || !currentUserId) return
 
     loadMessages()
 
+    // Vytvoření realtime kanálu
     const channel = supabase.channel(`chat-room-${roomId}`, {
       config: {
         broadcast: { self: true },
@@ -64,7 +46,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
       },
     })
 
-    // Optimized message handlers
+    // Poslouchání změn v chat_messages
     channel
       .on(
         "postgres_changes",
@@ -75,15 +57,18 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log("New message received:", payload)
+
+          // Načteme kompletní zprávu s relacemi
           try {
             const { data: newMessage, error } = await supabase
               .from("chat_messages")
               .select(`
                 *,
-                sender:users(id, name, avatar_url),
+                sender:users(*),
                 reactions:message_reactions(
                   *,
-                  user:users(id, name, avatar_url)
+                  user:users(*)
                 )
               `)
               .eq("id", payload.new.id)
@@ -94,6 +79,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
               return
             }
 
+            // Pokud má reply_to_id, načteme replied zprávu
             let messageWithReply = newMessage
             if (newMessage.reply_to_id) {
               const { data: repliedMessage } = await supabase
@@ -115,8 +101,10 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
             }
 
             setMessages((prev) => {
+              // Zkontrolujeme, zda zpráva již neexistuje
               const exists = prev.some((msg) => msg.id === messageWithReply.id)
               if (exists) return prev
+
               return [...prev, messageWithReply]
             })
           } catch (error) {
@@ -133,15 +121,18 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log("Message updated:", payload)
+
+          // Načteme aktualizovanou zprávu
           try {
             const { data: updatedMessage, error } = await supabase
               .from("chat_messages")
               .select(`
                 *,
-                sender:users(id, name, avatar_url),
+                sender:users(*),
                 reactions:message_reactions(
                   *,
-                  user:users(id, name, avatar_url)
+                  user:users(*)
                 )
               `)
               .eq("id", payload.new.id)
@@ -152,6 +143,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
               return
             }
 
+            // Pokud má reply_to_id, načteme replied zprávu
             let messageWithReply = updatedMessage
             if (updatedMessage.reply_to_id) {
               const { data: repliedMessage } = await supabase
@@ -187,9 +179,11 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
+          console.log("Message deleted:", payload)
           setMessages((prev) => prev.filter((msg) => msg.id !== payload.old.id))
         },
       )
+      // Poslouchání změn v message_reactions
       .on(
         "postgres_changes",
         {
@@ -197,41 +191,22 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           schema: "public",
           table: "message_reactions",
         },
-        async () => {
-          // Reload only current messages instead of all
-          const currentMessageIds = messages.map(m => m.id)
-          if (currentMessageIds.length > 0) {
-            try {
-              const { data: updatedMessages } = await supabase
-                .from("chat_messages")
-                .select(`
-                  id,
-                  reactions:message_reactions(
-                    *,
-                    user:users(id, name, avatar_url)
-                  )
-                `)
-                .in("id", currentMessageIds)
+        async (payload) => {
+          console.log("Reaction changed:", payload)
 
-              if (updatedMessages) {
-                setMessages(prev => prev.map(msg => {
-                  const updated = updatedMessages.find(u => u.id === msg.id)
-                  return updated ? { ...msg, reactions: updated.reactions } : msg
-                }))
-              }
-            } catch (error) {
-              console.error("Error updating reactions:", error)
-            }
-          }
+          // Znovu načteme zprávy pro aktualizaci reakcí
+          await loadMessages()
         },
       )
+      // Broadcast pro typing indikátor
       .on("broadcast", { event: "typing" }, (payload) => {
         const { user_id, user_name, typing } = payload.payload
 
-        if (user_id === currentUserId) return
+        if (user_id === currentUserId) return // Ignorujeme vlastní typing
 
         setTypingUsers((prev) => {
           if (typing) {
+            // Přidáme nebo aktualizujeme typing indikátor
             const existing = prev.find((t) => t.user_id === user_id)
             if (existing) {
               return prev.map((t) => (t.user_id === user_id ? { ...t, timestamp: Date.now() } : t))
@@ -246,6 +221,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
               },
             ]
           } else {
+            // Odebereme typing indikátor
             return prev.filter((t) => t.user_id !== user_id)
           }
         })
@@ -254,10 +230,12 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
 
     channelRef.current = channel
 
-    // Optimized cleanup interval
+    // Cleanup starých typing indikátorů
     const cleanupInterval = setInterval(() => {
-      setTypingUsers((prev) => prev.filter((t) => Date.now() - t.timestamp < 3000))
-    }, 2000) // Reduced frequency
+      setTypingUsers(
+        (prev) => prev.filter((t) => Date.now() - t.timestamp < 3000), // 3 sekundy
+      )
+    }, 1000)
 
     return () => {
       clearInterval(cleanupInterval)
@@ -265,9 +243,10 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
         supabase.removeChannel(channelRef.current)
       }
     }
-  }, [roomId, currentUserId, messages])
+  }, [roomId, currentUserId, loadMessages])
 
-  const sendMessage = useCallback(async (
+  // Odeslání zprávy
+  const sendMessage = async (
     message: string,
     options?: SendMessageOptions,
     replyToId?: string,
@@ -285,20 +264,23 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
     }
 
     return await db.sendChatMessage(messageData)
-  }, [currentUserId, roomId])
+  }
 
-  const editMessage = useCallback(async (
+  // Editace zprávy
+  const editMessage = async (
     messageId: string,
     newText: string,
   ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> => {
     return await db.updateChatMessage(messageId, newText)
-  }, [])
+  }
 
-  const deleteMessage = useCallback(async (messageId: string): Promise<boolean> => {
+  // Smazání zprávy
+  const deleteMessage = async (messageId: string): Promise<boolean> => {
     return await db.deleteChatMessage(messageId)
-  }, [])
+  }
 
-  const sendTypingIndicator = useCallback((userName: string) => {
+  // Typing indikátor
+  const sendTypingIndicator = (userName: string) => {
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -310,9 +292,9 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
         },
       })
     }
-  }, [currentUserId])
+  }
 
-  const stopTypingIndicator = useCallback(() => {
+  const stopTypingIndicator = () => {
     if (channelRef.current) {
       channelRef.current.send({
         type: "broadcast",
@@ -323,18 +305,16 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
         },
       })
     }
-  }, [currentUserId])
+  }
 
   return {
     messages,
     typingUsers,
     loading,
-    hasMore,
     sendMessage,
     editMessage,
     deleteMessage,
     sendTypingIndicator,
     stopTypingIndicator,
-    loadMoreMessages,
   }
 }

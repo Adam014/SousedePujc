@@ -84,10 +84,10 @@ export interface Notification {
   created_at: string
 }
 
-// Updated ChatRoom interface - booking_id is now optional
+// Nové typy pro chat
 export interface ChatRoom {
   id: string
-  booking_id?: string  // Made optional since chat rooms can exist without bookings
+  booking_id: string
   item_id: string
   owner_id: string
   borrower_id: string

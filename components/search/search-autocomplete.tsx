@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
-import { Search } from 'lucide-react'
+import { Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
@@ -23,69 +24,38 @@ export default function SearchAutocomplete({
   const [suggestions, setSuggestions] = useState<Item[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [allItems, setAllItems] = useState<Item[]>([])
-  const [loading, setLoading] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<NodeJS.Timeout>()
-
-  // Memoized search function
-  const searchItems = useMemo(() => {
-    return (searchQuery: string, items: Item[]) => {
-      if (searchQuery.length < 2) return []
-      
-      const query = searchQuery.toLowerCase()
-      return items
-        .filter(
-          (item) =>
-            item.title.toLowerCase().includes(query) ||
-            item.description?.toLowerCase().includes(query) ||
-            item.category?.name.toLowerCase().includes(query),
-        )
-        .slice(0, 5)
-    }
-  }, [])
 
   useEffect(() => {
     const loadItems = async () => {
-      try {
-        setLoading(true)
-        const items = await db.getItems()
-        setAllItems(items)
-      } catch (error) {
-        console.error("Error loading items for search:", error)
-      } finally {
-        setLoading(false)
-      }
+      const items = await db.getItems()
+      setAllItems(items)
     }
     loadItems()
   }, [])
 
-  // Debounced search
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
+    if (query.length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
     }
 
-    debounceRef.current = setTimeout(() => {
-      if (query.length < 2) {
-        setSuggestions([])
-        setShowSuggestions(false)
-        return
-      }
+    const filtered = allItems
+      .filter(
+        (item) =>
+          item.title.toLowerCase().includes(query.toLowerCase()) ||
+          item.description?.toLowerCase().includes(query.toLowerCase()) ||
+          item.category?.name.toLowerCase().includes(query.toLowerCase()),
+      )
+      .slice(0, 5)
 
-      const filtered = searchItems(query, allItems)
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
-    }, 150) // Reduced debounce time for faster response
+    setSuggestions(filtered)
+    setShowSuggestions(filtered.length > 0)
+  }, [query, allItems])
 
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-      }
-    }
-  }, [query, allItems, searchItems])
-
-  const handleSearch = useCallback((searchQuery: string) => {
+  const handleSearch = (searchQuery: string) => {
     if (onSearch) {
       onSearch(searchQuery)
     } else {
@@ -93,15 +63,15 @@ export default function SearchAutocomplete({
     }
     setShowSuggestions(false)
     setQuery("")
-  }, [onSearch, router])
+  }
 
-  const handleSuggestionClick = useCallback((item: Item) => {
+  const handleSuggestionClick = (item: Item) => {
     router.push(`/items/${item.id}`)
     setShowSuggestions(false)
     setQuery("")
-  }, [router])
+  }
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault()
       handleSearch(query)
@@ -109,21 +79,7 @@ export default function SearchAutocomplete({
     if (e.key === "Escape") {
       setShowSuggestions(false)
     }
-  }, [query, handleSearch])
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value)
-  }, [])
-
-  const handleFocus = useCallback(() => {
-    if (query.length >= 2 && suggestions.length > 0) {
-      setShowSuggestions(true)
-    }
-  }, [query.length, suggestions.length])
-
-  const handleBlur = useCallback(() => {
-    setTimeout(() => setShowSuggestions(false), 200)
-  }, [])
+  }
 
   return (
     <div className={`relative ${className}`}>
@@ -132,13 +88,12 @@ export default function SearchAutocomplete({
         <Input
           ref={inputRef}
           value={query}
-          onChange={handleInputChange}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
+          onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           className="pl-10"
-          disabled={loading}
         />
       </div>
 
@@ -148,15 +103,14 @@ export default function SearchAutocomplete({
             <button
               key={item.id}
               type="button"
-              className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0 transition-colors"
+              className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
               onClick={() => handleSuggestionClick(item)}
             >
               <div className="flex items-center space-x-3">
                 <img
-                  src={item.images?.[0] || "/placeholder.svg?height=40&width=40"}
+                  src={item.images[0] || "/placeholder.svg?height=40&width=40"}
                   alt={item.title}
                   className="w-10 h-10 object-cover rounded"
-                  loading="lazy"
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
