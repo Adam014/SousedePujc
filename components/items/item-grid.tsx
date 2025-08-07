@@ -1,3 +1,4 @@
+import { memo } from "react"
 import type { Item } from "@/lib/types"
 import ItemCard from "./item-card"
 
@@ -5,7 +6,7 @@ interface ItemGridProps {
   items: Item[]
 }
 
-export default function ItemGrid({ items }: ItemGridProps) {
+function ItemGrid({ items }: ItemGridProps) {
   if (items.length === 0) {
     return (
       <div className="text-center py-12">
@@ -22,3 +23,5 @@ export default function ItemGrid({ items }: ItemGridProps) {
     </div>
   )
 }
+
+export default memo(ItemGrid)

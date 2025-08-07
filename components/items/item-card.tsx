@@ -1,9 +1,10 @@
 import Image from "next/image"
 import Link from "next/link"
+import { memo } from "react"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MapPin } from "lucide-react"
+import { MapPin } from 'lucide-react'
 import type { Item } from "@/lib/types"
 import RatingDisplay from "@/components/ui/rating-display"
 
@@ -17,7 +18,7 @@ const conditionLabels = {
   good: "Dobrý",
   fair: "Uspokojivý",
   poor: "Špatný",
-}
+} as const
 
 const conditionColors = {
   excellent: "bg-green-100 text-green-800",
@@ -25,17 +26,24 @@ const conditionColors = {
   good: "bg-yellow-100 text-yellow-800",
   fair: "bg-orange-100 text-orange-800",
   poor: "bg-red-100 text-red-800",
-}
+} as const
 
-export default function ItemCard({ item }: ItemCardProps) {
-  // Handle potential null/undefined values from Supabase
-  const imageUrl = item.images && item.images.length > 0 ? item.images[0] : "/placeholder.svg?height=300&width=400"
+function ItemCard({ item }: ItemCardProps) {
+  const imageUrl = item.images?.[0] || "/placeholder.svg?height=300&width=400"
 
   return (
     <Card className="overflow-hidden hover:shadow-elegant transition-all duration-300 card-hover bg-white border-0 shadow-soft">
-      <Link href={`/items/${item.id}`}>
+      <Link href={`/items/${item.id}`} prefetch={false}>
         <div className="relative aspect-video">
-          <Image src={imageUrl || "/placeholder.svg"} alt={item.title} fill className="object-cover" />
+          <Image 
+            src={imageUrl || "/placeholder.svg"} 
+            alt={item.title} 
+            fill 
+            className="object-cover" 
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+            priority={false}
+            loading="lazy"
+          />
           {!item.is_available && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <Badge variant="secondary" className="text-white bg-red-600">
@@ -47,7 +55,7 @@ export default function ItemCard({ item }: ItemCardProps) {
       </Link>
 
       <CardContent className="p-4">
-        <Link href={`/items/${item.id}`}>
+        <Link href={`/items/${item.id}`} prefetch={false}>
           <h3 className="font-semibold text-lg mb-2 hover:text-blue-600 transition-colors line-clamp-1">
             {item.title}
           </h3>
@@ -88,3 +96,5 @@ export default function ItemCard({ item }: ItemCardProps) {
     </Card>
   )
 }
+
+export default memo(ItemCard)

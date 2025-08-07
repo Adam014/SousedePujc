@@ -10,39 +10,77 @@ import type {
   ChatMessage,
   MessageReaction,
 } from "./types"
-// Přidání importu pro content filter
 import { filterInappropriateContent, logInappropriateContent, type ContentFilterResult } from "./content-filter"
+
+// Cache for frequently accessed data
+const cache = new Map<string, { data: any; timestamp: number }>()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+function getCachedData<T>(key: string): T | null {
+  const cached = cache.get(key)
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data
+  }
+  cache.delete(key)
+  return null
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  cache.set(key, { data, timestamp: Date.now() })
+}
 
 export const db = {
   // Users
   async getUsers(): Promise<User[]> {
-    const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
+    const cacheKey = "users"
+    const cached = getCachedData<User[]>(cacheKey)
+    if (cached) return cached
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching users:", error)
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async getUserById(id: string): Promise<User | null> {
-    const { data, error } = await supabase.from("users").select("*").eq("id", id).single()
+    const cacheKey = `user-${id}`
+    const cached = getCachedData<User>(cacheKey)
+    if (cached) return cached
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", id)
+      .single()
 
     if (error) {
-      if (error.code === "PGRST116") return null // No rows returned
+      if (error.code === "PGRST116") return null
       console.error("Error fetching user:", error)
       throw error
     }
 
+    setCachedData(cacheKey, data)
     return data
   },
 
   async getUserByEmail(email: string): Promise<User | null> {
-    const { data, error } = await supabase.from("users").select("*").eq("email", email).single()
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
+      .single()
 
     if (error) {
-      if (error.code === "PGRST116") return null // No rows returned
+      if (error.code === "PGRST116") return null
       console.error("Error fetching user by email:", error)
       return null
     }
@@ -51,13 +89,19 @@ export const db = {
   },
 
   async createUser(userData: Omit<User, "id" | "created_at" | "updated_at">): Promise<User> {
-    const { data, error } = await supabase.from("users").insert([userData]).select().single()
+    const { data, error } = await supabase
+      .from("users")
+      .insert([userData])
+      .select()
+      .single()
 
     if (error) {
       console.error("Error creating user:", error)
       throw error
     }
 
+    // Invalidate users cache
+    cache.delete("users")
     return data
   },
 
@@ -67,40 +111,63 @@ export const db = {
       updated_at: new Date().toISOString(),
     }
 
-    // Pokud se aktualizuje avatar_url na null, explicitně to nastavíme
     if (userData.avatar_url === null) {
       updateData.avatar_url = null
     }
 
-    // Pokud se aktualizuje privacy_settings, ujistíme se, že je to objekt
     if (userData.privacy_settings) {
       updateData.privacy_settings = userData.privacy_settings
     }
 
-    const { data, error } = await supabase.from("users").update(updateData).eq("id", id).select().single()
+    const { data, error } = await supabase
+      .from("users")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
 
     if (error) {
       console.error("Error updating user:", error)
       throw error
     }
 
+    // Invalidate cache
+    cache.delete(`user-${id}`)
+    cache.delete("users")
     return data
   },
 
   // Categories
   async getCategories(): Promise<Category[]> {
-    const { data, error } = await supabase.from("categories").select("*").order("name", { ascending: true })
+    const cacheKey = "categories"
+    const cached = getCachedData<Category[]>(cacheKey)
+    if (cached) return cached
+
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("name", { ascending: true })
 
     if (error) {
       console.error("Error fetching categories:", error)
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async getCategoryById(id: string): Promise<Category | null> {
-    const { data, error } = await supabase.from("categories").select("*").eq("id", id).single()
+    const cacheKey = `category-${id}`
+    const cached = getCachedData<Category>(cacheKey)
+    if (cached) return cached
+
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("id", id)
+      .single()
 
     if (error) {
       if (error.code === "PGRST116") return null
@@ -108,30 +175,52 @@ export const db = {
       throw error
     }
 
+    setCachedData(cacheKey, data)
     return data
   },
 
-  // Items
+  // Items - Optimized with better indexing
   async getItems(): Promise<Item[]> {
+    const cacheKey = "items"
+    const cached = getCachedData<Item[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("items")
       .select(`
-        *,
-        owner:users!items_owner_id_fkey(*),
-        category:categories!items_category_id_fkey(*)
+        id,
+        title,
+        description,
+        images,
+        daily_rate,
+        condition,
+        location,
+        is_available,
+        created_at,
+        category_id,
+        owner_id,
+        owner:users!items_owner_id_fkey(id, name, avatar_url, reputation_score),
+        category:categories!items_category_id_fkey(id, name)
       `)
       .eq("is_available", true)
       .order("created_at", { ascending: false })
+      .limit(1000) // Limit for performance
 
     if (error) {
       console.error("Error fetching items:", error)
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async getItemById(id: string): Promise<Item | null> {
+    const cacheKey = `item-${id}`
+    const cached = getCachedData<Item>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("items")
       .select(`
@@ -148,10 +237,15 @@ export const db = {
       throw error
     }
 
+    setCachedData(cacheKey, data)
     return data
   },
 
   async getItemsByOwner(ownerId: string): Promise<Item[]> {
+    const cacheKey = `items-owner-${ownerId}`
+    const cached = getCachedData<Item[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("items")
       .select(`
@@ -167,7 +261,9 @@ export const db = {
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async createItem(itemData: Omit<Item, "id" | "created_at" | "updated_at">): Promise<Item> {
@@ -186,6 +282,9 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    cache.delete("items")
+    cache.delete(`items-owner-${itemData.owner_id}`)
     return data
   },
 
@@ -206,6 +305,12 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    cache.delete("items")
+    cache.delete(`item-${id}`)
+    if (data.owner_id) {
+      cache.delete(`items-owner-${data.owner_id}`)
+    }
     return data
   },
 
@@ -217,10 +322,13 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    cache.delete("items")
+    cache.delete(`item-${id}`)
     return true
   },
 
-  // Bookings
+  // Bookings - Optimized queries
   async getBookings(): Promise<Booking[]> {
     const { data, error } = await supabase
       .from("bookings")
@@ -233,6 +341,7 @@ export const db = {
         borrower:users!bookings_borrower_id_fkey(*)
       `)
       .order("created_at", { ascending: false })
+      .limit(500) // Limit for performance
 
     if (error) {
       console.error("Error fetching bookings:", error)
@@ -243,7 +352,10 @@ export const db = {
   },
 
   async getBookingsByUser(userId: string): Promise<Booking[]> {
-    // Upravený dotaz pro správné načtení údajů o majiteli předmětu
+    const cacheKey = `bookings-user-${userId}`
+    const cached = getCachedData<Booking[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("bookings")
       .select(`
@@ -262,7 +374,6 @@ export const db = {
       throw error
     }
 
-    // Kontrola, že každá rezervace má správně načtené údaje o majiteli
     const bookingsWithOwners =
       data?.map((booking) => {
         if (!booking.item?.owner) {
@@ -271,10 +382,15 @@ export const db = {
         return booking
       }) || []
 
+    setCachedData(cacheKey, bookingsWithOwners)
     return bookingsWithOwners
   },
 
   async getBookingsByOwner(ownerId: string): Promise<Booking[]> {
+    const cacheKey = `bookings-owner-${ownerId}`
+    const cached = getCachedData<Booking[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("bookings")
       .select(`
@@ -309,10 +425,14 @@ export const db = {
         throw bookingsError
       }
 
-      return bookings || []
+      const result = bookings || []
+      setCachedData(cacheKey, result)
+      return result
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async getBookingsForItem(itemId: string): Promise<Booking[]> {
@@ -384,6 +504,12 @@ export const db = {
       }
     }
 
+    // Invalidate cache
+    cache.delete(`bookings-user-${bookingData.borrower_id}`)
+    if (data.item?.owner_id) {
+      cache.delete(`bookings-owner-${data.item.owner_id}`)
+    }
+
     return data
   },
 
@@ -405,6 +531,14 @@ export const db = {
     if (error) {
       console.error("Error updating booking status:", error)
       throw error
+    }
+
+    // Invalidate cache
+    if (data) {
+      cache.delete(`bookings-user-${data.borrower_id}`)
+      if (data.item?.owner_id) {
+        cache.delete(`bookings-owner-${data.item.owner_id}`)
+      }
     }
 
     return data
@@ -436,6 +570,14 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    if (data) {
+      cache.delete(`bookings-user-${data.borrower_id}`)
+      if (data.item?.owner_id) {
+        cache.delete(`bookings-owner-${data.item.owner_id}`)
+      }
+    }
+
     return data
   },
 
@@ -450,7 +592,6 @@ export const db = {
     return true
   },
 
-  // Přidání nové funkce pro načtení rezervací předmětů, které vlastní uživatel
   async getBookingsForOwnedItems(itemIds: string[]): Promise<Booking[]> {
     if (itemIds.length === 0) return []
 
@@ -474,6 +615,10 @@ export const db = {
 
   // Reviews
   async getReviewsByUser(userId: string): Promise<Review[]> {
+    const cacheKey = `reviews-${userId}`
+    const cached = getCachedData<Review[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("reviews")
       .select(`
@@ -489,7 +634,9 @@ export const db = {
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async createReview(reviewData: Omit<Review, "id" | "created_at">): Promise<Review> {
@@ -508,6 +655,8 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    cache.delete(`reviews-${reviewData.reviewed_id}`)
     return data
   },
 
@@ -518,6 +667,7 @@ export const db = {
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
+      .limit(50) // Limit for performance
 
     if (error) {
       console.error("Error fetching notifications:", error)
@@ -569,8 +719,12 @@ export const db = {
     return true
   },
 
-  // Chat
+  // Chat - Optimized for performance
   async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
+    const cacheKey = `chat-rooms-${userId}`
+    const cached = getCachedData<ChatRoom[]>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("chat_rooms")
       .select(`
@@ -587,10 +741,16 @@ export const db = {
       throw error
     }
 
-    return data || []
+    const result = data || []
+    setCachedData(cacheKey, result)
+    return result
   },
 
   async getChatRoomById(roomId: string): Promise<ChatRoom | null> {
+    const cacheKey = `chat-room-${roomId}`
+    const cached = getCachedData<ChatRoom>(cacheKey)
+    if (cached) return cached
+
     const { data, error } = await supabase
       .from("chat_rooms")
       .select(`
@@ -608,6 +768,7 @@ export const db = {
       throw error
     }
 
+    setCachedData(cacheKey, data)
     return data
   },
 
@@ -628,25 +789,28 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache
+    cache.delete(`chat-rooms-${roomData.owner_id}`)
+    cache.delete(`chat-rooms-${roomData.borrower_id}`)
     return data
   },
 
-  // Opravená funkce pro načítání zpráv - rozdělíme na dva dotazy
-  async getChatMessagesByRoom(roomId: string): Promise<ChatMessage[]> {
+  // Optimized message loading with pagination
+  async getChatMessagesByRoom(roomId: string, limit: number = 50, offset: number = 0): Promise<ChatMessage[]> {
     try {
-      // Nejprve načteme všechny zprávy s jejich základními daty
       const { data: messages, error: messagesError } = await supabase
         .from("chat_messages")
         .select(`
           *,
-          sender:users(*),
+          sender:users(id, name, avatar_url),
           reactions:message_reactions(
             *,
-            user:users(*)
+            user:users(id, name, avatar_url)
           )
         `)
         .eq("room_id", roomId)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1)
 
       if (messagesError) {
         console.error("Error fetching chat messages:", messagesError)
@@ -657,15 +821,18 @@ export const db = {
         return []
       }
 
-      // Najdeme všechny reply_to_id které nejsou null
-      const replyToIds = messages
-        .filter((msg) => msg.reply_to_id)
-        .map((msg) => msg.reply_to_id)
-        .filter((id, index, arr) => arr.indexOf(id) === index) // unique values
+      // Reverse to get chronological order
+      const reversedMessages = messages.reverse()
+
+      // Find unique reply_to_id values
+      const replyToIds = [...new Set(
+        reversedMessages
+          .filter((msg) => msg.reply_to_id)
+          .map((msg) => msg.reply_to_id)
+      )]
 
       let repliedMessages: any[] = []
 
-      // Pokud máme nějaké reply_to_id, načteme je
       if (replyToIds.length > 0) {
         const { data: replies, error: repliesError } = await supabase
           .from("chat_messages")
@@ -680,14 +847,13 @@ export const db = {
 
         if (repliesError) {
           console.error("Error fetching replied messages:", repliesError)
-          // Pokračujeme bez replied zpráv
         } else {
           repliedMessages = replies || []
         }
       }
 
-      // Spojíme zprávy s jejich replied zprávami
-      const messagesWithReplies = messages.map((message) => {
+      // Combine messages with their replies
+      const messagesWithReplies = reversedMessages.map((message) => {
         if (message.reply_to_id) {
           const repliedMessage = repliedMessages.find((reply) => reply.id === message.reply_to_id)
           return {
@@ -705,11 +871,9 @@ export const db = {
     }
   },
 
-  // V sendChatMessage funkci nahradit filtrování:
   async sendChatMessage(
     messageData: Omit<ChatMessage, "id" | "created_at" | "is_read">,
   ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> {
-    // Filtrování nevhodného obsahu
     const filterResult: ContentFilterResult = filterInappropriateContent(messageData.message)
 
     const filteredMessageData = {
@@ -736,7 +900,6 @@ export const db = {
       throw error
     }
 
-    // Logování nevhodného obsahu pokud bylo filtrováno
     if (filterResult.wasFiltered) {
       await logInappropriateContent(
         messageData.sender_id,
@@ -748,7 +911,7 @@ export const db = {
       )
     }
 
-    // Aktualizujeme poslední zprávu v místnosti
+    // Update room's last message
     await supabase
       .from("chat_rooms")
       .update({
@@ -758,7 +921,9 @@ export const db = {
       })
       .eq("id", filteredMessageData.room_id)
 
-    // Pokud je to reply, načteme replied zprávu
+    // Invalidate cache
+    cache.delete(`chat-room-${filteredMessageData.room_id}`)
+
     let messageWithReply = data
     if (data.reply_to_id) {
       const { data: repliedMessage } = await supabase
@@ -786,16 +951,13 @@ export const db = {
     }
   },
 
-  // V updateChatMessage funkci nahradit filtrování:
   async updateChatMessage(
     messageId: string,
     newText: string,
   ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> {
-    // Filtrování nevhodného obsahu
     const filterResult: ContentFilterResult = filterInappropriateContent(newText)
 
     try {
-      // Nejprve zkontrolujeme, zda zpráva existuje
       const { data: existingMessage, error: fetchError } = await supabase
         .from("chat_messages")
         .select("*")
@@ -807,7 +969,6 @@ export const db = {
         throw fetchError
       }
 
-      // Aktualizace zprávy
       const { data, error } = await supabase
         .from("chat_messages")
         .update({
@@ -831,7 +992,6 @@ export const db = {
         throw error
       }
 
-      // Logování nevhodného obsahu pokud bylo filtrováno
       if (filterResult.wasFiltered) {
         await logInappropriateContent(
           existingMessage.sender_id,
@@ -843,7 +1003,6 @@ export const db = {
         )
       }
 
-      // Pokud je to reply, načteme replied zprávu
       let messageWithReply = data
       if (data.reply_to_id) {
         const { data: repliedMessage } = await supabase
@@ -875,7 +1034,6 @@ export const db = {
     }
   },
 
-  // Vylepšená metoda pro smazání zprávy - nyní skutečně maže zprávu z databáze
   async deleteChatMessage(messageId: string): Promise<boolean> {
     const { error } = await supabase.from("chat_messages").delete().eq("id", messageId)
 
@@ -904,7 +1062,10 @@ export const db = {
   },
 
   async getUnreadMessageCount(userId: string): Promise<number> {
-    // Získáme všechny místnosti, kde je uživatel
+    const cacheKey = `unread-count-${userId}`
+    const cached = getCachedData<number>(cacheKey)
+    if (cached !== null) return cached
+
     const { data: rooms, error: roomsError } = await supabase
       .from("chat_rooms")
       .select("id")
@@ -919,7 +1080,6 @@ export const db = {
 
     const roomIds = rooms.map((room) => room.id)
 
-    // Získáme počet nepřečtených zpráv
     const { count, error } = await supabase
       .from("chat_messages")
       .select("id", { count: "exact", head: true })
@@ -932,22 +1092,24 @@ export const db = {
       throw error
     }
 
-    return count || 0
+    const result = count || 0
+    setCachedData(cacheKey, result)
+    return result
   },
 
-  // Přidání funkce pro aktualizaci last_seen
   async updateUserLastSeen(userId: string): Promise<void> {
     const { error } = await supabase.from("users").update({ last_seen: new Date().toISOString() }).eq("id", userId)
 
     if (error) {
       console.error("Error updating user last seen:", error)
     }
+
+    // Invalidate cache
+    cache.delete(`user-${userId}`)
   },
 
-  // Opravené funkce pro reakce na zprávy
   async addMessageReaction(messageId: string, userId: string, emoji: string): Promise<MessageReaction> {
     try {
-      // Nejprve zkontrolujeme, zda reakce již neexistuje
       const { data: existingReaction } = await supabase
         .from("message_reactions")
         .select("*")
@@ -957,12 +1119,10 @@ export const db = {
         .maybeSingle()
 
       if (existingReaction) {
-        // Reakce již existuje, vrátíme ji s user daty
         const user = await this.getUserById(userId)
         return { ...existingReaction, user }
       }
 
-      // Přidáme novou reakci
       const { data, error } = await supabase
         .from("message_reactions")
         .insert([
