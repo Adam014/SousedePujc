@@ -10,7 +10,6 @@ interface AddressAutocompleteProps {
   placeholder?: string
 }
 
-// Simulovaná data pro autocomplete (v produkci by se použilo Google Places API)
 const mockAddresses = [
   "Praha 1, Václavské náměstí 1",
   "Praha 1, Národní třída 15",
