@@ -1,0 +1,52 @@
+name: Ping Supabase to Prevent Pausing
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Supabase Client
+        run: npm install @supabase/supabase-js
+
+      - name: Ping Supabase Database
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          (async () => {
+            try {
+              const { createClient } = require('@supabase/supabase-js');
+              
+              // Používáme klíč, který jsi zadal do env
+              const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY); 
+
+              console.log('Připojuji se k Supabase a pinguji databázi...');
+
+              // Ping dotaz: Vybírá pouze 1 'id' z jedné tabulky (minimalizace zátěže)
+              const { data, error } = await supabase.from('items').select('id').limit(1);
+
+              if (error) throw error;
+
+              console.log('--- Databáze úspěšně pingnuta ---');
+              console.log('Načtená data (jen pro kontrolu):', data);
+
+            } catch (err) {
+              console.error('CHYBA PINGU Supabase:', err.message);
+              process.exit(1); // Selhání akce
+            }
+          })();
+          "
