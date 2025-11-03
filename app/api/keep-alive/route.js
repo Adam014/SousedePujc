@@ -12,9 +12,9 @@ export async function GET() {
   console.log('Spouštím Supabase keep-alive ping...');
 
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('categories')
-      .select('id')
+      .select('id, name') 
       .limit(1);
 
     if (error) {
@@ -22,7 +22,12 @@ export async function GET() {
     }
 
     console.log('Supabase keep-alive: Ping úspěšný.');
-    return NextResponse.json({ message: 'Supabase databáze úspěšně pingnuta.' });
+    console.log('Načtená ukázková data:', data);
+
+    return NextResponse.json({
+      message: 'Supabase databáze úspěšně pingnuta.',
+      data: data 
+    });
 
   } catch (error) {
     console.error('Chyba při Supabase keep-alive pingu:', error.message);
