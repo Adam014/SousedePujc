@@ -27,41 +27,63 @@ export default function Header() {
   // Kontrola, zda jsme v chat místnosti
   const isInChatRoom = pathname?.startsWith("/messages/") || false
 
-  // Načtení počtu nepřečtených zpráv
+  // Načtení počtu nepřečtených zpráv - optimalizováno s debouncing
   useEffect(() => {
     if (!user) return
 
+    let isSubscribed = true
+    let debounceTimer: NodeJS.Timeout | null = null
+
     // Funkce pro načtení počtu nepřečtených zpráv
     const loadUnreadMessages = async () => {
+      if (!isSubscribed) return
+      
       try {
         const count = await db.getUnreadMessageCount(user.id)
-        setUnreadMessages(count)
+        if (isSubscribed) {
+          setUnreadMessages(count)
+        }
       } catch (error) {
         console.error("Error loading unread messages count:", error)
       }
     }
 
+    // Debounced verze pro realtime updates
+    const debouncedLoadUnreadMessages = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      debounceTimer = setTimeout(() => {
+        loadUnreadMessages()
+      }, 500) // 500ms debounce
+    }
+
     // Načteme počet nepřečtených zpráv při prvním renderu
     loadUnreadMessages()
 
-    // Nastavíme realtime subscription pro všechny chat_messages
+    // Nastavíme realtime subscription POUZE pro zprávy pro tohoto uživatele
     const channel = supabase
-      .channel("header_unread_messages")
+      .channel(`header_unread_messages_${user.id}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "chat_messages",
+          filter: `receiver_id=eq.${user.id}`,
         },
         () => {
-          // Při jakékoliv změně v chat_messages aktualizujeme počet nepřečtených zpráv
-          loadUnreadMessages()
+          // Aktualizujeme s debouncing
+          debouncedLoadUnreadMessages()
         },
       )
       .subscribe()
 
     return () => {
+      isSubscribed = false
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
       supabase.removeChannel(channel)
     }
   }, [user])

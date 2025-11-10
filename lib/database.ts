@@ -13,6 +13,22 @@ import type {
 // Přidání importu pro content filter
 import { filterInappropriateContent, logInappropriateContent, type ContentFilterResult } from "./content-filter"
 
+// Cache pro items a categories
+let itemsCache: { data: Item[] | null; timestamp: number } = { data: null, timestamp: 0 }
+let categoriesCache: { data: Category[] | null; timestamp: number } = { data: null, timestamp: 0 }
+const CACHE_DURATION = 30000 // 30 sekund cache
+const CATEGORY_CACHE_DURATION = 300000 // 5 minut pro kategorie (mění se zřídka)
+
+// Funkce pro invalidaci cache
+export const invalidateCache = {
+  items: () => { itemsCache = { data: null, timestamp: 0 } },
+  categories: () => { categoriesCache = { data: null, timestamp: 0 } },
+  all: () => {
+    itemsCache = { data: null, timestamp: 0 }
+    categoriesCache = { data: null, timestamp: 0 }
+  }
+}
+
 export const db = {
   // Users
   async getUsers(): Promise<User[]> {
@@ -68,8 +84,8 @@ export const db = {
     }
 
     // Pokud se aktualizuje avatar_url na null, explicitně to nastavíme
-    if (userData.avatar_url === null) {
-      updateData.avatar_url = null
+    if ('avatar_url' in userData && userData.avatar_url === null) {
+      updateData.avatar_url = undefined
     }
 
     // Pokud se aktualizuje privacy_settings, ujistíme se, že je to objekt
@@ -89,12 +105,23 @@ export const db = {
 
   // Categories
   async getCategories(): Promise<Category[]> {
+    // Zkontrolujeme cache
+    const now = Date.now()
+    if (categoriesCache.data && (now - categoriesCache.timestamp) < CATEGORY_CACHE_DURATION) {
+      return categoriesCache.data
+    }
+
     const { data, error } = await supabase.from("categories").select("*").order("name", { ascending: true })
 
     if (error) {
       console.error("Error fetching categories:", error)
+      // Vrátíme starou cache pokud existuje
+      if (categoriesCache.data) return categoriesCache.data
       throw error
     }
+
+    // Uložíme do cache
+    categoriesCache = { data: data || [], timestamp: now }
 
     return data || []
   },
@@ -113,6 +140,12 @@ export const db = {
 
   // Items
   async getItems(): Promise<Item[]> {
+    // Zkontrolujeme cache
+    const now = Date.now()
+    if (itemsCache.data && (now - itemsCache.timestamp) < CACHE_DURATION) {
+      return itemsCache.data
+    }
+
     const { data, error } = await supabase
       .from("items")
       .select(`
@@ -127,6 +160,9 @@ export const db = {
       console.error("Error fetching items:", error)
       throw error
     }
+
+    // Uložíme do cache
+    itemsCache = { data: data || [], timestamp: now }
 
     return data || []
   },

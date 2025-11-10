@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/database"
 import type { ChatMessage, TypingIndicator } from "@/lib/types"

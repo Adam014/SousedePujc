@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
@@ -25,7 +25,6 @@ const ITEMS_PER_PAGE = 12
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([])
   const [filteredItems, setFilteredItems] = useState<Item[]>([])
-  const [displayedItems, setDisplayedItems] = useState<Item[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
@@ -40,23 +39,26 @@ export default function HomePage() {
 
   const searchParams = useSearchParams()
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     try {
-      setLoading(true)
-      setError("")
-      setIsNetworkError(false)
+      // Rychlé načtení z cache pokud existuje
       const data = await db.getItems()
       setItems(data)
+      setLoading(false)
+      setError("")
+      setIsNetworkError(false)
 
       // Nastavení výchozího cenového rozsahu podle dat
-      const prices = data.map((item) => item.price || 0)
-      const minPrice = Math.min(...prices, 0)
-      const maxPrice = Math.max(...prices, 10000)
+      if (data.length > 0) {
+        const prices = data.map((item) => item.daily_rate || 0)
+        const minPrice = Math.min(...prices, 0)
+        const maxPrice = Math.max(...prices, 10000)
 
-      setFilters((prev) => ({
-        ...prev,
-        priceRange: [minPrice, maxPrice],
-      }))
+        setFilters((prev) => ({
+          ...prev,
+          priceRange: [minPrice, maxPrice],
+        }))
+      }
     } catch (error: any) {
       console.error("Error loading items:", error)
 
@@ -71,7 +73,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadItems()
@@ -84,85 +86,94 @@ export default function HomePage() {
     }
   }, [searchParams])
 
-  // Funkce pro filtrování a řazení předmětů
-  const filterAndSortItems = useMemo(() => {
-    return (items: Item[]) => {
-      let result = [...items]
+  // Funkce pro filtrování a řazení předmětů - optimalizováno
+  const filteredAndSortedItems = useMemo(() => {
+    let result = [...items]
 
-      // Filtrování podle kategorie
-      if (selectedCategory) {
-        result = result.filter((item) => item.category_id === selectedCategory)
-      }
-
-      // Filtrování podle vyhledávání
-      if (searchQuery) {
-        result = result.filter(
-          (item) =>
-            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.category?.name.toLowerCase().includes(searchQuery.toLowerCase()),
-        )
-      }
-
-      // Filtrování podle ceny
-      result = result.filter((item) => {
-        const price = item.price || 0
-        return price >= filters.priceRange[0] && price <= filters.priceRange[1]
-      })
-
-      // Filtrování podle dostupnosti
-      if (filters.availability === "available") {
-        result = result.filter((item) => item.is_available)
-      } else if (filters.availability === "unavailable") {
-        result = result.filter((item) => !item.is_available)
-      }
-
-      // Řazení
-      result.sort((a, b) => {
-        switch (sortBy) {
-          case "newest":
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          case "oldest":
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          case "price_asc":
-            return (a.price || 0) - (b.price || 0)
-          case "price_desc":
-            return (b.price || 0) - (a.price || 0)
-          case "name_asc":
-            return a.title.localeCompare(b.title)
-          case "name_desc":
-            return b.title.localeCompare(a.title)
-          default:
-            return 0
-        }
-      })
-
-      return result
+    // Filtrování podle kategorie
+    if (selectedCategory) {
+      result = result.filter((item) => item.category_id === selectedCategory)
     }
-  }, [selectedCategory, searchQuery, filters, sortBy])
+
+    // Filtrování podle vyhledávání
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(
+        (item) =>
+          item.title.toLowerCase().includes(query) ||
+          item.description?.toLowerCase().includes(query) ||
+          item.category?.name.toLowerCase().includes(query),
+      )
+    }
+
+    // Filtrování podle ceny
+    result = result.filter((item) => {
+      const price = item.daily_rate || 0
+      return price >= filters.priceRange[0] && price <= filters.priceRange[1]
+    })
+
+    // Filtrování podle dostupnosti
+    if (filters.availability === "available") {
+      result = result.filter((item) => item.is_available)
+    } else if (filters.availability === "unavailable") {
+      result = result.filter((item) => !item.is_available)
+    }
+
+    // Řazení
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case "oldest":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case "price_asc":
+          return (a.daily_rate || 0) - (b.daily_rate || 0)
+        case "price_desc":
+          return (b.daily_rate || 0) - (a.daily_rate || 0)
+        case "name_asc":
+          return a.title.localeCompare(b.title)
+        case "name_desc":
+          return b.title.localeCompare(a.title)
+        default:
+          return 0
+      }
+    })
+
+    return result
+  }, [items, selectedCategory, searchQuery, filters, sortBy])
 
   // Aplikace filtrů a řazení při změně dat
   useEffect(() => {
-    if (items.length > 0) {
-      const filtered = filterAndSortItems(items)
-      setFilteredItems(filtered)
-      setCurrentPage(1) // Reset na první stránku při změně filtrů
-    }
-  }, [items, filterAndSortItems])
+    setFilteredItems(filteredAndSortedItems)
+    setCurrentPage(1) // Reset na první stránku při změně filtrů
+  }, [filteredAndSortedItems])
 
-  // Stránkování
-  useEffect(() => {
+  // Stránkování - optimalizováno
+  const displayedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
     const endIndex = startIndex + ITEMS_PER_PAGE
-    setDisplayedItems(filteredItems.slice(startIndex, endIndex))
+    return filteredItems.slice(startIndex, endIndex)
   }, [filteredItems, currentPage])
 
   // Výpočet celkového počtu stránek
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
 
-  // Funkce pro generování stránek pro paginaci
-  const generatePaginationItems = () => {
-    const pages = []
+  // Výpočet min a max ceny pro filtry
+  const minMaxPrice = useMemo(() => {
+    if (items.length === 0) return { min: 0, max: 10000 }
+
+    const prices = items.map((item) => item.daily_rate || 0)
+    return {
+      min: Math.min(...prices),
+      max: Math.max(...prices, 1000), // Minimálně 1000 Kč jako maximum
+    }
+  }, [items])
+
+  // Funkce pro generování stránek pro paginaci - optimalizováno
+  const paginationItems = useMemo(() => {
+    const pages: JSX.Element[] = []
+
+    if (totalPages <= 1) return pages
 
     // Vždy zobrazit první stránku
     pages.push(
@@ -216,18 +227,18 @@ export default function HomePage() {
     }
 
     return pages
-  }
+  }, [currentPage, totalPages])
 
-  // Výpočet min a max ceny pro filtry
-  const minMaxPrice = useMemo(() => {
-    if (items.length === 0) return { min: 0, max: 10000 }
-
-    const prices = items.map((item) => item.price || 0)
-    return {
-      min: Math.min(...prices),
-      max: Math.max(...prices, 1000), // Minimálně 1000 Kč jako maximum
-    }
-  }, [items])
+  // Funkce pro reset filtrů
+  const handleResetFilters = useCallback(() => {
+    setSelectedCategory(null)
+    setSearchQuery("")
+    setFilters({
+      priceRange: [minMaxPrice.min, minMaxPrice.max],
+      availability: "all",
+    })
+    setSortBy("newest")
+  }, [minMaxPrice])
 
   if (loading) {
     return (
@@ -347,7 +358,7 @@ export default function HomePage() {
                   />
                 </PaginationItem>
 
-                {generatePaginationItems()}
+                {paginationItems}
 
                 <PaginationItem>
                   <PaginationNext
@@ -363,17 +374,7 @@ export default function HomePage() {
         <div className="text-center py-16 bg-gray-50 rounded-lg">
           <h3 className="text-xl font-medium text-gray-700 mb-2">Žádné předměty nenalezeny</h3>
           <p className="text-gray-500 mb-6">Zkuste upravit filtry nebo vyhledávání pro zobrazení více předmětů.</p>
-          <Button
-            onClick={() => {
-              setSelectedCategory(null)
-              setSearchQuery("")
-              setFilters({
-                priceRange: [minMaxPrice.min, minMaxPrice.max],
-                availability: "all",
-              })
-              setSortBy("newest")
-            }}
-          >
+          <Button onClick={handleResetFilters}>
             Resetovat všechny filtry
           </Button>
         </div>

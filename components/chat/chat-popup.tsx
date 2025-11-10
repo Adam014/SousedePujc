@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
 import type { ChatRoom as ChatRoomType } from "@/lib/types"
@@ -20,39 +20,66 @@ export default function ChatPopup() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const popupRef = useRef<HTMLDivElement>(null)
+  
+  const loadChatRooms = useCallback(async () => {
+    if (!user || !isOpen) return
 
-  // Načtení chat roomů
+    try {
+      setLoading(true)
+      const rooms = await db.getChatRoomsByUser(user.id)
+      setChatRooms(rooms)
+
+      // Načtení počtu nepřečtených zpráv
+      const count = await db.getUnreadMessageCount(user.id)
+      setUnreadMessages(count)
+    } catch (error) {
+      console.error("Error loading chat rooms:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [user, isOpen])
+  
   useEffect(() => {
-    const loadChatRooms = async () => {
-      if (!user) return
+    let mounted = true
+    let interval: NodeJS.Timeout | null = null
 
-      try {
-        setLoading(true)
-        const rooms = await db.getChatRoomsByUser(user.id)
-        setChatRooms(rooms)
-
-        // Načtení počtu nepřečtených zpráv
-        const count = await db.getUnreadMessageCount(user.id)
-        setUnreadMessages(count)
-      } catch (error) {
-        console.error("Error loading chat rooms:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (user) {
+    if (user && isOpen && mounted) {
       loadChatRooms()
+      
+      // Polling pouze když je popup otevřený a méně často
+      interval = setInterval(() => {
+        if (mounted && user && isOpen) {
+          loadChatRooms()
+        }
+      }, 60000) // každých 60 sekund místo 30
     }
 
-    // Nastavení intervalu pro pravidelnou kontrolu nových zpráv
-    const interval = setInterval(() => {
-      if (user) {
-        loadChatRooms()
-      }
-    }, 30000) // každých 30 sekund
+    return () => {
+      mounted = false
+      if (interval) clearInterval(interval)
+    }
+  }, [user, isOpen, loadChatRooms])
+  
+  // Načtení počtu nepřečtených zpráv při prvním načtení
+  useEffect(() => {
+    let mounted = true
 
-    return () => clearInterval(interval)
+    const loadUnreadCount = async () => {
+      if (!user || !mounted) return
+      
+      try {
+        const count = await db.getUnreadMessageCount(user.id)
+        if (mounted) setUnreadMessages(count)
+      } catch (error) {
+        console.error("Error loading unread count:", error)
+      }
+    }
+    
+    if (user) {
+      loadUnreadCount()
+    }
+
+    return () => { mounted = false }
   }, [user])
 
   // Zavření popup při kliknutí mimo
@@ -63,36 +90,38 @@ export default function ChatPopup() {
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside)
+      }
     }
-  }, [])
+  }, [isOpen])
 
-  const togglePopup = () => {
-    setIsOpen(!isOpen)
-    if (!isOpen) {
+  const togglePopup = useCallback(() => {
+    setIsOpen(prev => !prev)
+    if (isOpen) {
       setActiveChatId(null)
     }
-  }
+  }, [isOpen])
 
-  const openChat = (roomId: string) => {
+  const openChat = useCallback((roomId: string) => {
     setActiveChatId(roomId)
-  }
+  }, [])
 
-  const closeChat = () => {
+  const closeChat = useCallback(() => {
     setActiveChatId(null)
-  }
+  }, [])
 
-  const getOtherUser = (room: ChatRoomType) => {
+  const getOtherUser = useCallback((room: ChatRoomType) => {
     if (!user) return null
     return user.id === room.owner_id ? room.borrower : room.owner
-  }
+  }, [user])
 
-  const handleViewAllMessages = () => {
+  const handleViewAllMessages = useCallback(() => {
     router.push("/messages")
     setIsOpen(false)
-  }
+  }, [router])
 
   if (!user) return null
 

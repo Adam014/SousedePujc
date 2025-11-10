@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import type { Notification } from "./types"
 import { db } from "./database"
 
@@ -9,7 +9,7 @@ export function useNotifications(userId: string | null) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const loadNotifications = useCallback(async () => {
     if (!userId) {
       setNotifications([])
       setUnreadCount(0)
@@ -17,33 +17,44 @@ export function useNotifications(userId: string | null) {
       return
     }
 
-    const loadNotifications = async () => {
-      try {
-        const data = await db.getNotificationsByUser(userId)
-        setNotifications(data)
-        setUnreadCount(data.filter((n) => !n.is_read).length)
-      } catch (error) {
-        console.error("Error loading notifications:", error)
-      } finally {
-        setLoading(false)
-      }
+    try {
+      const data = await db.getNotificationsByUser(userId)
+      setNotifications(data)
+      setUnreadCount(data.filter((n) => !n.is_read).length)
+    } catch (error) {
+      console.error("Error loading notifications:", error)
+    } finally {
+      setLoading(false)
     }
-
-    loadNotifications()
-
-    // Simulace real-time aktualizací
-    const interval = setInterval(loadNotifications, 30000) // každých 30 sekund
-
-    return () => clearInterval(interval)
   }, [userId])
 
-  const markAsRead = async (notificationId: string) => {
+  useEffect(() => {
+    let mounted = true
+    let interval: NodeJS.Timeout | null = null
+
+    if (userId && mounted) {
+      loadNotifications()
+      
+      // Polling každých 60 sekund místo 30
+      interval = setInterval(() => {
+        if (mounted) loadNotifications()
+      }, 60000)
+    }
+
+    return () => {
+      mounted = false
+      if (interval) clearInterval(interval)
+    }
+  }, [userId, loadNotifications])
+
+  const markAsRead = useCallback(async (notificationId: string) => {
     try {
       const notification = notifications.find((n) => n.id === notificationId)
       if (notification && !notification.is_read) {
-        // Update locally
-        const updatedNotifications = notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
-        setNotifications(updatedNotifications)
+        // Optimistic update
+        setNotifications(prev => prev.map((n) => 
+          n.id === notificationId ? { ...n, is_read: true } : n
+        ))
         setUnreadCount((prev) => Math.max(0, prev - 1))
 
         // Persist to database
@@ -51,30 +62,33 @@ export function useNotifications(userId: string | null) {
       }
     } catch (error) {
       console.error("Error marking notification as read:", error)
+      // Revert on error
+      loadNotifications()
     }
-  }
+  }, [notifications, loadNotifications])
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
+    if (!userId) return
+
     try {
-      if (!userId) return
-
-      // Update locally
-      const updatedNotifications = notifications.map((n) => ({ ...n, is_read: true }))
-      setNotifications(updatedNotifications)
+      // Optimistic update
+      setNotifications(prev => prev.map((n) => ({ ...n, is_read: true })))
       setUnreadCount(0)
 
       // Persist to database
       await db.markAllNotificationsAsRead(userId)
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
+      // Revert on error
+      loadNotifications()
     }
-  }
+  }, [userId, loadNotifications])
 
-  return {
+  return useMemo(() => ({
     notifications,
     unreadCount,
     loading,
     markAsRead,
     markAllAsRead,
-  }
+  }), [notifications, unreadCount, loading, markAsRead, markAllAsRead])
 }

@@ -111,10 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          // Pokud je rememberMe true, nastavíme expirationTime na 30 dní, jinak na 1 den
-          expiresIn: rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60,
-        },
       })
 
       if (error) {
