@@ -223,7 +223,14 @@ export default function ProfilePage() {
           <TabsTrigger value="lent-items">Žádosti o zapůjčení</TabsTrigger>
           <TabsTrigger value="bookings">Moje rezervace</TabsTrigger>
           <TabsTrigger value="reviews">Hodnocení</TabsTrigger>
-          <TabsTrigger value="messages">Zprávy</TabsTrigger>
+          <TabsTrigger value="messages" disabled className="relative cursor-not-allowed opacity-60">
+            <span className="flex items-center gap-2">
+              Zprávy
+              <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                WIP
+              </Badge>
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="items" className="space-y-6">
@@ -388,7 +395,7 @@ export default function ProfilePage() {
 
         <TabsContent value="messages" className="space-y-6">
           <h2 className="text-2xl font-semibold">Zprávy ({chatRooms.length})</h2>
-          <ChatList />
+          <ChatList rooms={chatRooms} loading={loading} />
         </TabsContent>
       </Tabs>
     </div>
