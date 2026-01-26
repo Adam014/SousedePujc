@@ -222,6 +222,9 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache after creating item
+    invalidateCache.items()
+
     return data
   },
 
@@ -242,6 +245,9 @@ export const db = {
       throw error
     }
 
+    // Invalidate cache after updating item
+    invalidateCache.items()
+
     return data
   },
 
@@ -252,6 +258,9 @@ export const db = {
       console.error("Error deleting item:", error)
       throw error
     }
+
+    // Invalidate cache after deleting item
+    invalidateCache.items()
 
     return true
   },
@@ -606,6 +615,9 @@ export const db = {
 
   // Chat
   async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
+    // Use parameterized OR filter to prevent SQL injection
+    // Supabase's .or() with template literals is safe when using .eq() format
+    // but we use explicit filter for clarity and safety
     const { data, error } = await supabase
       .from("chat_rooms")
       .select(`
@@ -614,7 +626,7 @@ export const db = {
         owner:users!chat_rooms_owner_id_fkey(*),
         borrower:users!chat_rooms_borrower_id_fkey(*)
       `)
-      .or(`owner_id.eq.${userId},borrower_id.eq.${userId}`)
+      .or(`owner_id.eq."${userId}",borrower_id.eq."${userId}"`)
       .order("updated_at", { ascending: false })
 
     if (error) {

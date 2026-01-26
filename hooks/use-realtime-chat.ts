@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/database"
 import type { ChatMessage, TypingIndicator } from "@/lib/types"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 
 interface SendMessageOptions {
   attachment_url?: string
@@ -15,7 +16,8 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([])
   const [loading, setLoading] = useState(true)
-  const channelRef = useRef<any>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const isMountedRef = useRef(true)
 
   // Načtení zpráv
   const loadMessages = useCallback(async () => {
@@ -24,11 +26,15 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
     try {
       setLoading(true)
       const messagesData = await db.getChatMessagesByRoom(roomId)
-      setMessages(messagesData)
+      if (isMountedRef.current) {
+        setMessages(messagesData)
+      }
     } catch (error) {
       console.error("Error loading messages:", error)
     } finally {
-      setLoading(false)
+      if (isMountedRef.current) {
+        setLoading(false)
+      }
     }
   }, [roomId])
 
@@ -36,6 +42,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
   useEffect(() => {
     if (!roomId || !currentUserId) return
 
+    isMountedRef.current = true
     loadMessages()
 
     // Vytvoření realtime kanálu
@@ -100,13 +107,15 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
               }
             }
 
-            setMessages((prev) => {
-              // Zkontrolujeme, zda zpráva již neexistuje
-              const exists = prev.some((msg) => msg.id === messageWithReply.id)
-              if (exists) return prev
+            if (isMountedRef.current) {
+              setMessages((prev) => {
+                // Zkontrolujeme, zda zpráva již neexistuje
+                const exists = prev.some((msg) => msg.id === messageWithReply.id)
+                if (exists) return prev
 
-              return [...prev, messageWithReply]
-            })
+                return [...prev, messageWithReply]
+              })
+            }
           } catch (error) {
             console.error("Error processing new message:", error)
           }
@@ -265,12 +274,18 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
     }, 1000)
 
     return () => {
+      isMountedRef.current = false
       clearInterval(cleanupInterval)
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [roomId, currentUserId, loadMessages])
+
+  // Constants for message validation
+  const MAX_MESSAGE_LENGTH = 5000
+  const MIN_MESSAGE_LENGTH = 1
 
   // Odeslání zprávy
   const sendMessage = async (
@@ -282,10 +297,19 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
       throw new Error("Missing user ID or room ID")
     }
 
+    // Input validation
+    const trimmedMessage = message.trim()
+    if (trimmedMessage.length < MIN_MESSAGE_LENGTH) {
+      throw new Error("Message cannot be empty")
+    }
+    if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+      throw new Error(`Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`)
+    }
+
     const messageData = {
       room_id: roomId,
       sender_id: currentUserId,
-      message,
+      message: trimmedMessage,
       reply_to_id: replyToId || undefined,
       ...options,
     }
@@ -298,7 +322,15 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
     messageId: string,
     newText: string,
   ): Promise<{ message: ChatMessage; wasFiltered: boolean; filteredWords: string[] }> => {
-    return await db.updateChatMessage(messageId, newText)
+    // Input validation
+    const trimmedText = newText.trim()
+    if (trimmedText.length < MIN_MESSAGE_LENGTH) {
+      throw new Error("Message cannot be empty")
+    }
+    if (trimmedText.length > MAX_MESSAGE_LENGTH) {
+      throw new Error(`Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`)
+    }
+    return await db.updateChatMessage(messageId, trimmedText)
   }
 
   // Smazání zprávy

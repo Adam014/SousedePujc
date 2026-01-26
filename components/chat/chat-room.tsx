@@ -350,7 +350,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
           </div>
 
           {isPopup && onClose && (
-            <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
+            <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto" aria-label="Zavřít chat">
               ×
             </Button>
           )}
@@ -469,6 +469,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                                   size="sm"
                                   className="h-7 w-7 sm:h-5 sm:w-5 p-0 opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity"
                                   onClick={() => handleReplyToMessage(message)}
+                                  aria-label="Odpovědět na zprávu"
                                 >
                                   <Reply className="h-4 w-4 sm:h-3 sm:w-3" />
                                 </Button>
@@ -480,6 +481,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                                         variant="ghost"
                                         size="sm"
                                         className="h-7 w-7 sm:h-5 sm:w-5 p-0 text-blue-100 hover:text-white opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity"
+                                        aria-label="Možnosti zprávy"
                                       >
                                         <MoreVertical className="h-4 w-4 sm:h-3 sm:w-3" />
                                       </Button>

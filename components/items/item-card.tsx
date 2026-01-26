@@ -35,16 +35,15 @@ export default function ItemCard({ item }: ItemCardProps) {
     <Card className="overflow-hidden hover:shadow-elegant transition-all duration-300 card-hover bg-white border-0 shadow-soft">
       <Link href={`/items/${item.id}`} prefetch={true}>
         <div className="relative aspect-video bg-gray-100">
-          <Image 
-            src={imageUrl || "/placeholder.svg"} 
-            alt={item.title} 
-            fill 
+          <Image
+            src={imageUrl || "/placeholder.svg"}
+            alt={item.title}
+            fill
             className="object-cover transition-opacity duration-200"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             priority={false}
             loading="eager"
             quality={75}
-            unoptimized={imageUrl.includes('supabase.co')}
           />
           {!item.is_available && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">

@@ -144,9 +144,9 @@ export default function LoginPage() {
                 <Label htmlFor="password" className="text-sm font-medium">
                   Heslo
                 </Label>
-                {/* <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
                   Zapomenuté heslo?
-                </Link> */}
+                </Link>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

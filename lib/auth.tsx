@@ -24,11 +24,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // Generujeme unikátní ID pro každou instanci prohlížeče
+// Using crypto.getRandomValues() for cryptographically secure random ID
 const generateBrowserId = () => {
   const existingId = localStorage.getItem("browser_session_id")
   if (existingId) return existingId
 
-  const newId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+  // Use crypto API for secure random generation
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  const newId = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
   localStorage.setItem("browser_session_id", newId)
   return newId
 }
