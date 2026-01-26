@@ -116,6 +116,15 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
     }
   }, [editingMessageId])
 
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Typing indikátor při psaní
   const handleInputChange = (value: string) => {
     setNewMessage(value)

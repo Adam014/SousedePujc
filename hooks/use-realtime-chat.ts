@@ -194,8 +194,35 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
         async (payload) => {
           console.log("Reaction changed:", payload)
 
-          // Znovu načteme zprávy pro aktualizaci reakcí
-          await loadMessages()
+          // Získáme message_id z payloadu
+          const messageId = payload.new?.message_id || payload.old?.message_id
+          if (!messageId) return
+
+          // Aktualizujeme pouze reakce pro konkrétní zprávu, ne všechny zprávy
+          try {
+            const { data: reactions, error } = await supabase
+              .from("message_reactions")
+              .select(`
+                *,
+                user:users(*)
+              `)
+              .eq("message_id", messageId)
+
+            if (error) {
+              console.error("Error fetching reactions:", error)
+              return
+            }
+
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, reactions: reactions || [] }
+                  : msg
+              )
+            )
+          } catch (error) {
+            console.error("Error updating reactions:", error)
+          }
         },
       )
       // Broadcast pro typing indikátor

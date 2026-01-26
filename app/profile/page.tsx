@@ -48,28 +48,42 @@ export default function ProfilePage() {
         setLoading(true)
         setError("")
 
-        // Načteme předměty uživatele
-        const items = await db.getItemsByOwner(user.id)
+        // Použijeme Promise.allSettled pro odolnost - pokud jeden dotaz selže, ostatní pokračují
+        const [itemsResult, bookingsResult, reviewsResult, roomsResult] = await Promise.allSettled([
+          db.getItemsByOwner(user.id),
+          db.getBookingsByUser(user.id),
+          db.getReviewsByUser(user.id),
+          db.getChatRoomsByUser(user.id),
+        ])
+
+        // Zpracujeme výsledky - použijeme prázdné pole pokud dotaz selhal
+        const items = itemsResult.status === "fulfilled" ? itemsResult.value : []
+        const bookings = bookingsResult.status === "fulfilled" ? bookingsResult.value : []
+        const reviews = reviewsResult.status === "fulfilled" ? reviewsResult.value : []
+        const rooms = roomsResult.status === "fulfilled" ? roomsResult.value : []
+
+        // Logujeme případné chyby
+        if (itemsResult.status === "rejected") console.error("Error loading items:", itemsResult.reason)
+        if (bookingsResult.status === "rejected") console.error("Error loading bookings:", bookingsResult.reason)
+        if (reviewsResult.status === "rejected") console.error("Error loading reviews:", reviewsResult.reason)
+        if (roomsResult.status === "rejected") console.error("Error loading chat rooms:", roomsResult.reason)
+
         setUserItems(items)
-
-        // Načteme rezervace, kde je uživatel zájemcem (borrower)
-        const bookings = await db.getBookingsByUser(user.id)
         setUserBookings(bookings)
-
-        // Načteme hodnocení uživatele
-        const reviews = await db.getReviewsByUser(user.id)
         setUserReviews(reviews)
-
-        // Načteme chat rooms uživatele
-        const rooms = await db.getChatRoomsByUser(user.id)
         setChatRooms(rooms)
 
         // Načteme rezervace předmětů, které vlastní uživatel
         // Toto jsou rezervace, kde je uživatel majitelem předmětu
         const itemIds = items.map((item) => item.id)
         if (itemIds.length > 0) {
-          const bookingsForOwnedItems = await db.getBookingsForOwnedItems(itemIds)
-          setOwnerBookings(bookingsForOwnedItems)
+          try {
+            const bookingsForOwnedItems = await db.getBookingsForOwnedItems(itemIds)
+            setOwnerBookings(bookingsForOwnedItems)
+          } catch (error) {
+            console.error("Error loading owner bookings:", error)
+            setOwnerBookings([])
+          }
         } else {
           setOwnerBookings([])
         }

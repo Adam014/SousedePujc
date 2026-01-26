@@ -311,22 +311,20 @@ export const db = {
   },
 
   async getBookingsByOwner(ownerId: string): Promise<Booking[]> {
-    const { data, error } = await supabase
-      .from("bookings")
-      .select(`
-        *,
-        item:items!bookings_item_id_fkey(*),
-        borrower:users!bookings_borrower_id_fkey(*)
-      `)
-      .eq("item.owner_id", ownerId)
-      .order("created_at", { ascending: false })
+    // Nested filtering like .eq("item.owner_id", ownerId) doesn't work in Supabase
+    // So we first get item IDs, then fetch bookings for those items
+    try {
+      const { data: items, error: itemsError } = await supabase
+        .from("items")
+        .select("id")
+        .eq("owner_id", ownerId)
 
-    if (error) {
-      console.error("Error fetching bookings by owner:", error)
-      // Try alternative approach
-      const { data: items } = await supabase.from("items").select("id").eq("owner_id", ownerId)
+      if (itemsError) {
+        console.error("Error fetching owner items:", itemsError)
+        throw itemsError
+      }
 
-      if (!items) return []
+      if (!items || items.length === 0) return []
 
       const itemIds = items.map((item) => item.id)
 
@@ -341,14 +339,15 @@ export const db = {
         .order("created_at", { ascending: false })
 
       if (bookingsError) {
-        console.error("Error fetching bookings by owner (alternative):", bookingsError)
+        console.error("Error fetching bookings by owner:", bookingsError)
         throw bookingsError
       }
 
       return bookings || []
+    } catch (error) {
+      console.error("Error in getBookingsByOwner:", error)
+      throw error
     }
-
-    return data || []
   },
 
   async getBookingsForItem(itemId: string): Promise<Booking[]> {

@@ -40,8 +40,19 @@ export default function UserProfilePage() {
 
         setUser(userData)
 
-        // Načtení předmětů a recenzí uživatele
-        const [items, reviews] = await Promise.all([db.getItemsByOwner(userData.id), db.getReviewsByUser(userData.id)])
+        // Načtení předmětů a recenzí uživatele - použijeme Promise.allSettled pro odolnost
+        const [itemsResult, reviewsResult] = await Promise.allSettled([
+          db.getItemsByOwner(userData.id),
+          db.getReviewsByUser(userData.id)
+        ])
+
+        // Zpracujeme výsledky - použijeme prázdné pole pokud dotaz selhal
+        const items = itemsResult.status === "fulfilled" ? itemsResult.value : []
+        const reviews = reviewsResult.status === "fulfilled" ? reviewsResult.value : []
+
+        // Logujeme případné chyby
+        if (itemsResult.status === "rejected") console.error("Error loading items:", itemsResult.reason)
+        if (reviewsResult.status === "rejected") console.error("Error loading reviews:", reviewsResult.reason)
 
         // Filtrujeme pouze dostupné předměty
         const availableItems = items.filter((item) => item.is_available)

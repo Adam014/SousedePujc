@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
@@ -21,9 +21,14 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
   const router = useRouter()
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
 
+  // Stabilní reference na room IDs pro dependency array
+  const roomIds = useMemo(() => rooms.map(r => r.id).sort().join(','), [rooms])
+
   // Načtení počtu nepřečtených zpráv pro každou místnost
   useEffect(() => {
     if (!user || rooms.length === 0) return
+
+    let isMounted = true
 
     const loadUnreadCounts = async () => {
       const counts: Record<string, number> = {}
@@ -49,14 +54,16 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
         }
       }
 
-      setUnreadCounts(counts)
+      if (isMounted) {
+        setUnreadCounts(counts)
+      }
     }
 
     loadUnreadCounts()
 
     // Nastavíme realtime subscription pro chat_messages
     const channel = supabase
-      .channel("chat_list_unread_counter")
+      .channel(`chat_list_unread_counter_${user.id}`)
       .on(
         "postgres_changes",
         {
@@ -64,17 +71,20 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
           schema: "public",
           table: "chat_messages",
         },
-        (payload) => {
+        () => {
           // Při jakékoliv změně v chat_messages aktualizujeme počty nepřečtených zpráv
-          loadUnreadCounts()
+          if (isMounted) {
+            loadUnreadCounts()
+          }
         },
       )
       .subscribe()
 
     return () => {
+      isMounted = false
       supabase.removeChannel(channel)
     }
-  }, [user, rooms])
+  }, [user, roomIds]) // Use stable roomIds instead of rooms array
 
   // Funkce pro získání druhého uživatele v konverzaci
   const getOtherUser = (room: ChatRoom) => {
