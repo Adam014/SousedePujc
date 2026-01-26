@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
 import NotificationDropdown from "@/components/notifications/notification-dropdown"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
+import MobileMenu from "@/components/layout/mobile-menu"
 import { usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
@@ -113,25 +114,28 @@ export default function Header() {
 
   return (
     <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50 shadow-soft">
-      <div className="container mx-auto px-4 py-3">
+      <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-3">
         <div className="flex items-center justify-between">
+          {/* Mobile Menu Button */}
+          <MobileMenu unreadMessages={unreadMessages} />
+
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-soft group-hover:shadow-md transition-all duration-300">
-              <Package className="h-6 w-6 text-white" />
+          <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group">
+            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl shadow-soft group-hover:shadow-md transition-all duration-300">
+              <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent hidden xs:inline">
               SousedePůjč
             </span>
           </Link>
 
-          {/* Vyhledávání */}
+          {/* Vyhledávání - Desktop only */}
           <div className="hidden md:flex flex-1 max-w-md mx-8">
             <SearchAutocomplete className="w-full" />
           </div>
 
-          {/* Navigace */}
-          <div className="flex items-center space-x-4">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
                 <Button asChild variant="outline">
@@ -225,6 +229,37 @@ export default function Header() {
                   <Link href="/register">Registrovat se</Link>
                 </Button>
               </div>
+            )}
+          </div>
+
+          {/* Mobile Navigation Icons */}
+          <div className="flex md:hidden items-center space-x-1">
+            {user ? (
+              <>
+                <Button asChild variant="ghost" size="icon" className="relative touch-target-sm" aria-label="Zprávy">
+                  <Link href="/messages">
+                    <MessageSquare className="h-5 w-5" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center text-[10px]">
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
+                  </Link>
+                </Button>
+                <NotificationDropdown />
+                <Button asChild variant="ghost" size="icon" className="touch-target-sm" aria-label="Profil">
+                  <Link href="/profile">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.name} />
+                      <AvatarFallback className="text-xs">{user.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <Button asChild size="sm" className="touch-target-sm">
+                <Link href="/login">Přihlásit</Link>
+              </Button>
             )}
           </div>
         </div>

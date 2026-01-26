@@ -137,20 +137,33 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       {/* Profil header */}
-      <Card className="mb-8">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-6">
-            {/* V Avatar komponentě použijeme currentAvatarUrl místo user.avatar_url */}
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={currentAvatarUrl || "/placeholder.svg"} />
-              <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
-            </Avatar>
+      <Card className="mb-6 sm:mb-8">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            {/* Avatar */}
+            <div className="flex items-center gap-4 sm:block">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24">
+                <AvatarImage src={currentAvatarUrl || "/placeholder.svg"} />
+                <AvatarFallback className="text-xl sm:text-2xl">{user.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              {/* Mobile: Name and badge inline with avatar */}
+              <div className="sm:hidden">
+                <div className="flex items-center flex-wrap gap-2 mb-1">
+                  <h1 className="text-xl font-bold">{user.name}</h1>
+                  <Badge className={user.is_verified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                    <Shield className="h-3 w-3 mr-1" />
+                    {user.is_verified ? "Ověřený" : "Neověřený"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
 
             <div className="flex-1">
-              <div className="flex items-center space-x-3 mb-2">
-                <h1 className="text-3xl font-bold">{user.name}</h1>
+              {/* Desktop: Name and badge */}
+              <div className="hidden sm:flex items-center space-x-3 mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">{user.name}</h1>
                 <Badge className={user.is_verified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
                   <Shield className="h-3 w-3 mr-1" />
                   {user.is_verified ? "Ověřený" : "Neověřený"}
@@ -158,12 +171,12 @@ export default function ProfilePage() {
               </div>
 
               {/* Kontaktní informace podle nastavení soukromí */}
-              <div className="space-y-2 mb-3">
+              <div className="space-y-1 sm:space-y-2 mb-3 text-sm sm:text-base">
                 {privacySettings.show_email && (
                   <p className="text-gray-600">
                     <span className="inline-flex items-center">
                       <Mail className="h-4 w-4 mr-1" />
-                      {user.email}
+                      <span className="truncate">{user.email}</span>
                     </span>
                   </p>
                 )}
@@ -188,28 +201,28 @@ export default function ProfilePage() {
               </div>
 
               {user.bio && privacySettings.show_bio && (
-                <div className="text-gray-600 mb-3">
+                <div className="text-gray-600 mb-3 text-sm sm:text-base">
                   <p className="font-medium text-sm text-gray-500 mb-1">O mně:</p>
                   <p>{user.bio}</p>
                 </div>
               )}
 
-              <div className="flex items-center space-x-6">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm sm:text-base">
                 <RatingDisplay rating={user.reputation_score} reviewCount={userReviews.length} size="md" />
 
                 <div className="flex items-center space-x-2">
-                  <Package className="h-5 w-5 text-blue-600" />
+                  <Package className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   <span>{userItems.length} předmětů</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-green-600" />
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                   <span>{userBookings.length} rezervací</span>
                 </div>
               </div>
             </div>
 
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="w-full sm:w-auto touch-target">
               <Link href="/profile/edit">Upravit profil</Link>
             </Button>
           </div>
@@ -217,26 +230,35 @@ export default function ProfilePage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="items">Moje předměty</TabsTrigger>
-          <TabsTrigger value="lent-items">Žádosti o zapůjčení</TabsTrigger>
-          <TabsTrigger value="bookings">Moje rezervace</TabsTrigger>
-          <TabsTrigger value="reviews">Hodnocení</TabsTrigger>
-          <TabsTrigger value="messages" disabled className="relative cursor-not-allowed opacity-60">
-            <span className="flex items-center gap-2">
+      <Tabs defaultValue={defaultTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto gap-1 p-1">
+          <TabsTrigger value="items" className="text-xs sm:text-sm py-2 px-2 sm:px-3">
+            <span className="hidden sm:inline">Moje předměty</span>
+            <span className="sm:hidden">Předměty</span>
+          </TabsTrigger>
+          <TabsTrigger value="lent-items" className="text-xs sm:text-sm py-2 px-2 sm:px-3">
+            <span className="hidden sm:inline">Žádosti o zapůjčení</span>
+            <span className="sm:hidden">Žádosti</span>
+          </TabsTrigger>
+          <TabsTrigger value="bookings" className="text-xs sm:text-sm py-2 px-2 sm:px-3">
+            <span className="hidden sm:inline">Moje rezervace</span>
+            <span className="sm:hidden">Rezervace</span>
+          </TabsTrigger>
+          <TabsTrigger value="reviews" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Hodnocení</TabsTrigger>
+          <TabsTrigger value="messages" disabled className="relative cursor-not-allowed opacity-60 text-xs sm:text-sm py-2 px-2 sm:px-3 col-span-2 sm:col-span-1">
+            <span className="flex items-center gap-1 sm:gap-2">
               Zprávy
-              <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+              <Badge variant="secondary" className="text-[10px] sm:text-xs bg-yellow-100 text-yellow-800 hover:bg-yellow-100 px-1 sm:px-1.5">
                 WIP
               </Badge>
             </span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="items" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold">Moje předměty ({userItems.length})</h2>
-            <Button onClick={() => router.push("/items/new")}>
+        <TabsContent value="items" className="space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-xl sm:text-2xl font-semibold">Moje předměty ({userItems.length})</h2>
+            <Button onClick={() => router.push("/items/new")} className="w-full sm:w-auto touch-target">
               <Package className="h-4 w-4 mr-2" />
               Přidat předmět
             </Button>
@@ -245,40 +267,40 @@ export default function ProfilePage() {
           <ItemGrid items={userItems} />
         </TabsContent>
 
-        <TabsContent value="lent-items" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Žádosti o zapůjčení mých předmětů ({ownerBookings.length})</h2>
+        <TabsContent value="lent-items" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Žádosti o zapůjčení mých předmětů ({ownerBookings.length})</h2>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <Card className="bg-yellow-50">
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
+                    <div className="text-xl sm:text-2xl font-bold text-yellow-600">
                       {ownerBookings.filter((b) => b.status === "pending").length}
                     </div>
-                    <div className="text-sm text-yellow-700">Čeká na rozhodnutí</div>
+                    <div className="text-xs sm:text-sm text-yellow-700">Čeká</div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-green-50">
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-xl sm:text-2xl font-bold text-green-600">
                       {ownerBookings.filter((b) => b.status === "confirmed").length}
                     </div>
-                    <div className="text-sm text-green-700">Potvrzené</div>
+                    <div className="text-xs sm:text-sm text-green-700">Potvrzené</div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-red-50">
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-xl sm:text-2xl font-bold text-red-600">
                       {ownerBookings.filter((b) => b.status === "cancelled").length}
                     </div>
-                    <div className="text-sm text-red-700">Zamítnuté</div>
+                    <div className="text-xs sm:text-sm text-red-700">Zamítnuté</div>
                   </div>
                 </CardContent>
               </Card>
@@ -303,29 +325,29 @@ export default function ProfilePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="bookings" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Moje rezervace ({userBookings.length})</h2>
+        <TabsContent value="bookings" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Moje rezervace ({userBookings.length})</h2>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <Card className="bg-yellow-50">
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
+                    <div className="text-xl sm:text-2xl font-bold text-yellow-600">
                       {userBookings.filter((b) => b.status === "pending").length}
                     </div>
-                    <div className="text-sm text-yellow-700">Čeká na potvrzení</div>
+                    <div className="text-xs sm:text-sm text-yellow-700">Čeká na potvrzení</div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-green-50">
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-xl sm:text-2xl font-bold text-green-600">
                       {userBookings.filter((b) => b.status === "confirmed").length}
                     </div>
-                    <div className="text-sm text-green-700">Potvrzené</div>
+                    <div className="text-xs sm:text-sm text-green-700">Potvrzené</div>
                   </div>
                 </CardContent>
               </Card>
@@ -344,8 +366,8 @@ export default function ProfilePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="reviews" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Hodnocení ({userReviews.length})</h2>
+        <TabsContent value="reviews" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Hodnocení ({userReviews.length})</h2>
 
           <div className="space-y-4">
             {userReviews.length === 0 ? (
@@ -393,8 +415,8 @@ export default function ProfilePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="messages" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Zprávy ({chatRooms.length})</h2>
+        <TabsContent value="messages" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Zprávy ({chatRooms.length})</h2>
           <ChatList rooms={chatRooms} loading={loading} />
         </TabsContent>
       </Tabs>

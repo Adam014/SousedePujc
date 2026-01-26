@@ -312,7 +312,7 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
   const otherUser = getOtherUser()
 
   return (
-    <Card className={`flex flex-col relative ${isPopup ? "h-[500px] w-[400px] shadow-xl" : "h-[calc(100vh-200px)]"}`}>
+    <Card className={`flex flex-col relative ${isPopup ? "h-[500px] w-[calc(100vw-2rem)] sm:w-[400px] max-w-[400px] shadow-xl" : "h-[calc(100vh-200px)]"}`}>
       <ContentWarning show={showContentWarning} onClose={() => setShowContentWarning(false)} />
 
       <CardHeader className="border-b py-4 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -458,10 +458,10 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="h-7 w-7 sm:h-5 sm:w-5 p-0 opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity"
                                   onClick={() => handleReplyToMessage(message)}
                                 >
-                                  <Reply className="h-3 w-3" />
+                                  <Reply className="h-4 w-4 sm:h-3 sm:w-3" />
                                 </Button>
 
                                 {isCurrentUser && (
@@ -470,9 +470,9 @@ export default function ChatRoom({ roomId, isPopup = false, onClose }: ChatRoomP
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-5 w-5 p-0 text-blue-100 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="h-7 w-7 sm:h-5 sm:w-5 p-0 text-blue-100 hover:text-white opacity-70 sm:opacity-0 group-hover:opacity-100 transition-opacity"
                                       >
-                                        <MoreVertical className="h-3 w-3" />
+                                        <MoreVertical className="h-4 w-4 sm:h-3 sm:w-3" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">

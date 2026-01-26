@@ -289,11 +289,11 @@ export default function HomePage() {
 
         {/* Hero sekce pro případ výpadku */}
         {isNetworkError && (
-          <div className="text-center mb-12 py-8">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-6">
+          <div className="text-center mb-8 sm:mb-12 py-4 sm:py-8">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-4 sm:mb-6 px-4">
               Půjčte si od sousedů
             </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-4">
               Objevte předměty ve vaší komunitě. Půjčte si to, co potřebujete, nebo nabídněte své věci ostatním. Šetřete
               peníze a životní prostředí.
             </p>
@@ -304,19 +304,19 @@ export default function HomePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       {/* Hero sekce */}
-      <div className="text-center mb-12 py-8">
-        <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-6">
+      <div className="text-center mb-8 sm:mb-12 py-4 sm:py-8">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-4 sm:mb-6">
           Půjčte si od sousedů
         </h1>
-        <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+        <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-2">
           Objevte předměty ve vaší komunitě. Půjčte si to, co potřebujete, nebo nabídněte své věci ostatním. Šetřete
           peníze a životní prostředí.
         </p>
 
         {/* Vyhledávání */}
-        <SearchAutocomplete placeholder="Co hledáte?" onSearch={setSearchQuery} className="max-w-md mx-auto" />
+        <SearchAutocomplete placeholder="Co hledáte?" onSearch={setSearchQuery} className="max-w-xs sm:max-w-md mx-auto" />
       </div>
 
       {/* Filtry */}
@@ -333,12 +333,12 @@ export default function HomePage() {
       />
 
       {/* Nadpis sekce */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold">
+      <div className="flex justify-between items-center mb-4 sm:mb-6">
+        <h2 className="text-xl sm:text-2xl font-semibold">
           {selectedCategory || searchQuery || Object.keys(filters).length > 0
             ? "Filtrované předměty"
             : "Všechny předměty"}
-          <span className="text-gray-500 text-lg ml-2">({filteredItems.length})</span>
+          <span className="text-gray-500 text-base sm:text-lg ml-2">({filteredItems.length})</span>
         </h2>
       </div>
 
@@ -349,21 +349,33 @@ export default function HomePage() {
 
           {/* Stránkování */}
           {totalPages > 1 && (
-            <Pagination className="mt-8">
-              <PaginationContent>
+            <Pagination className="mt-6 sm:mt-8">
+              <PaginationContent className="gap-1 sm:gap-2">
                 <PaginationItem>
                   <PaginationPrevious
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
+                    className="touch-target-sm"
                   />
                 </PaginationItem>
 
-                {paginationItems}
+                {/* Mobile: show current page indicator */}
+                <PaginationItem className="sm:hidden">
+                  <span className="flex h-9 items-center justify-center px-3 text-sm">
+                    {currentPage} / {totalPages}
+                  </span>
+                </PaginationItem>
+
+                {/* Desktop: show page numbers */}
+                <div className="hidden sm:contents">
+                  {paginationItems}
+                </div>
 
                 <PaginationItem>
                   <PaginationNext
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
+                    className="touch-target-sm"
                   />
                 </PaginationItem>
               </PaginationContent>

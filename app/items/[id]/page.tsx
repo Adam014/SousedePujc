@@ -17,6 +17,7 @@ import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
 import DatabaseError from "@/components/error/database-error"
 import ImageGallery from "@/components/items/image-gallery"
+import Breadcrumb from "@/components/ui/breadcrumb"
 import Link from "next/link"
 import {
   Dialog,
@@ -259,31 +260,41 @@ export default function ItemDetailPage() {
   // Získání názvu kategorie jako string
   const categoryName = item.category?.name || "Nezařazeno"
 
+  // Breadcrumb items
+  const breadcrumbItems = [
+    ...(item.category ? [{ label: item.category.name, href: `/?category=${item.category.id}` }] : []),
+    { label: item.title },
+  ]
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      {/* Breadcrumb navigation */}
+      <Breadcrumb items={breadcrumbItems} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         {/* Levý sloupec - Obrázky a základní info */}
         <div className="lg:col-span-2">
-          <div className="mb-6">
+          <div className="mb-4 sm:mb-6">
             <ImageGallery images={item.images} alt={item.title} />
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-3xl font-bold text-gray-900">{item.title}</h1>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{item.title}</h1>
                 <div className="flex items-center gap-2">
                   {isOwner && (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)}>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/items/${item.id}/edit`)} className="touch-target-sm">
                         <Edit className="h-4 w-4 mr-1" />
-                        Upravit
+                        <span className="hidden sm:inline">Upravit</span>
+                        <span className="sm:hidden">Upravit</span>
                       </Button>
                       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Smazat
+                          <Button variant="destructive" size="sm" className="touch-target-sm">
+                            <Trash2 className="h-4 w-4 sm:mr-1" />
+                            <span className="hidden sm:inline">Smazat</span>
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -313,24 +324,30 @@ export default function ItemDetailPage() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-4 text-gray-600 mb-4">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm sm:text-base text-gray-600 mb-4">
                 {item.location && (
                   <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {item.location}
+                    <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">{item.location}</span>
                   </div>
                 )}
                 <div className="flex items-center">
-                  <CalendarIcon className="h-4 w-4 mr-1" />
-                  Přidáno {new Date(item.created_at).toLocaleDateString("cs-CZ")}
+                  <CalendarIcon className="h-4 w-4 mr-1 flex-shrink-0" />
+                  <span>Přidáno {new Date(item.created_at).toLocaleDateString("cs-CZ")}</span>
                 </div>
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid grid-cols-3 mb-4">
-                  <TabsTrigger value="details">Detaily</TabsTrigger>
-                  <TabsTrigger value="rules">Podmínky půjčení</TabsTrigger>
-                  <TabsTrigger value="owner">O majiteli</TabsTrigger>
+                <TabsList className="grid grid-cols-3 mb-4 h-auto p-1">
+                  <TabsTrigger value="details" className="text-xs sm:text-sm py-2">Detaily</TabsTrigger>
+                  <TabsTrigger value="rules" className="text-xs sm:text-sm py-2">
+                    <span className="hidden sm:inline">Podmínky půjčení</span>
+                    <span className="sm:hidden">Podmínky</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="owner" className="text-xs sm:text-sm py-2">
+                    <span className="hidden sm:inline">O majiteli</span>
+                    <span className="sm:hidden">Majitel</span>
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="space-y-4">

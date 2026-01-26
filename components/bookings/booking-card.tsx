@@ -168,11 +168,11 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
 
   return (
     <Card className="shadow-soft hover:shadow-elegant transition-all duration-300 border-0 bg-white">
-      <CardContent className="p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-          {/* Levá část - Info o předmětu */}
-          <div className="flex items-center space-x-4 flex-1">
-            <div className="relative h-16 w-16 rounded overflow-hidden">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex flex-col gap-4">
+          {/* Horní část - Info o předmětu */}
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+            <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded overflow-hidden flex-shrink-0">
               <img
                 src={booking.item?.images[0] || "/placeholder.svg?height=64&width=64"}
                 alt={booking.item?.title}
@@ -180,75 +180,70 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
               />
             </div>
 
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-base sm:text-lg truncate">
                 <Link href={`/items/${booking.item_id}`} className="hover:underline">
                   {booking.item?.title}
                 </Link>
               </h3>
 
-              <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-gray-600 mt-1">
                 <div className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-1" />
+                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                   {new Date(booking.start_date).toLocaleDateString("cs-CZ")} -{" "}
                   {new Date(booking.end_date).toLocaleDateString("cs-CZ")}
                 </div>
 
                 {booking.item?.location && (
                   <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    {booking.item.location}
+                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="truncate">{booking.item.location}</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center space-x-2 mt-2">
-                <Badge className={statusColors[booking.status]}>{statusLabels[booking.status]}</Badge>
+              <div className="flex items-center gap-2 mt-2">
+                <Badge className={`text-xs ${statusColors[booking.status]}`}>{statusLabels[booking.status]}</Badge>
                 <span className="text-sm font-medium text-gray-900">{booking.total_amount} Kč</span>
               </div>
             </div>
           </div>
 
           {/* Střední část - Info o uživateli */}
-          <div className="flex items-center space-x-3 lg:mx-6">
+          <div className="flex items-center gap-3">
             {otherUser && (
-              <Link href={`/users/${otherUser?.id}`} className="flex items-center space-x-3">
-                <Avatar className="h-10 w-10">
+              <Link href={`/users/${otherUser?.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <Avatar className="h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0">
                   <AvatarImage src={otherUser?.avatar_url || "/placeholder.svg"} />
                   <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
                 </Avatar>
 
-                <div>
-                  <p className="font-medium">{otherUser?.name || "Neznámý uživatel"}</p>
-                  <p className="text-sm text-gray-500">{isOwner ? "Zájemce" : "Majitel"}</p>
-
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-gray-500 mr-2">Hodnocení:</span>
-                    <span className="text-xs font-medium">{otherUser?.reputation_score?.toFixed(1) || "N/A"}</span>
-                  </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm sm:text-base truncate">{otherUser?.name || "Neznámý uživatel"}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">{isOwner ? "Zájemce" : "Majitel"} • {otherUser?.reputation_score?.toFixed(1) || "N/A"} ★</p>
                 </div>
               </Link>
             )}
           </div>
 
-          {/* Pravá část - Akce */}
-          <div className="flex flex-col space-y-2 lg:w-48">
+          {/* Spodní část - Akce */}
+          <div className="flex flex-col gap-2">
             {/* Kontaktní informace - zobrazit pouze pokud je rezervace potvrzená */}
             {canShowContact && otherUser && (
-              <div className="flex space-x-2">
+              <div className="flex gap-2">
                 {otherUser.phone && (
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <Phone className="h-3 w-3 mr-1" />
-                    <a href={`tel:${otherUser.phone}`} className="text-xs">
-                      Zavolat
+                  <Button size="sm" variant="outline" className="flex-1 touch-target-sm" asChild>
+                    <a href={`tel:${otherUser.phone}`}>
+                      <Phone className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                      <span className="text-xs sm:text-sm">Zavolat</span>
                     </a>
                   </Button>
                 )}
 
-                <Button size="sm" variant="outline" className="flex-1">
-                  <Mail className="h-3 w-3 mr-1" />
-                  <a href={`mailto:${otherUser?.email}`} className="text-xs">
-                    E-mail
+                <Button size="sm" variant="outline" className="flex-1 touch-target-sm" asChild>
+                  <a href={`mailto:${otherUser?.email}`}>
+                    <Mail className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                    <span className="text-xs sm:text-sm">E-mail</span>
                   </a>
                 </Button>
               </div>
@@ -256,24 +251,24 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
 
             {/* Akční tlačítka pro majitele */}
             {isOwner && booking.status === "pending" && (
-              <div className="flex space-x-2">
+              <div className="flex gap-2">
                 <Button
                   size="sm"
                   onClick={handleConfirmBooking}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 border-0 shadow-soft"
+                  className="flex-1 touch-target-sm bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 border-0 shadow-soft"
                 >
-                  <Check className="h-3 w-3 mr-1" />
-                  Potvrdit
+                  <Check className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                  <span className="text-xs sm:text-sm">Potvrdit</span>
                 </Button>
 
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleCancelBooking}
-                  className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+                  className="flex-1 touch-target-sm border-red-200 text-red-600 hover:bg-red-50"
                 >
-                  <X className="h-3 w-3 mr-1" />
-                  Odmítnout
+                  <X className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                  <span className="text-xs sm:text-sm">Odmítnout</span>
                 </Button>
               </div>
             )}
@@ -284,10 +279,10 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
                 size="sm"
                 variant="outline"
                 onClick={handleCancelBooking}
-                className="w-full border-red-200 text-red-600 hover:bg-red-50"
+                className="w-full touch-target-sm border-red-200 text-red-600 hover:bg-red-50"
               >
-                <X className="h-3 w-3 mr-1" />
-                Zrušit rezervaci
+                <X className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                <span className="text-xs sm:text-sm">Zrušit rezervaci</span>
               </Button>
             )}
 
@@ -295,9 +290,9 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
             {!isOwner && booking.status === "pending" && (
               <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="w-full border-red-200 text-red-600 hover:bg-red-50">
-                    <X className="h-3 w-3 mr-1" />
-                    Zrušit rezervaci
+                  <Button size="sm" variant="outline" className="w-full touch-target-sm border-red-200 text-red-600 hover:bg-red-50">
+                    <X className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                    <span className="text-xs sm:text-sm">Zrušit rezervaci</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
@@ -323,9 +318,9 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
             {!isOwner && booking.status === "confirmed" && (
               <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="w-full">
-                    <Star className="h-3 w-3 mr-1" />
-                    Ohodnotit majitele
+                  <Button size="sm" variant="outline" className="w-full touch-target-sm">
+                    <Star className="h-4 w-4 sm:h-3 sm:w-3 mr-1" />
+                    <span className="text-xs sm:text-sm">Ohodnotit majitele</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent>

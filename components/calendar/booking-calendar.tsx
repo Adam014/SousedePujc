@@ -370,7 +370,7 @@ export default function BookingCalendar({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-4">
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-80 max-w-80 p-4">
               <div className="grid gap-4">
                 <div className="space-y-2">
                   <h4 className="font-medium">Měsíc</h4>
@@ -512,12 +512,12 @@ export default function BookingCalendar({
               <Percent className="h-4 w-4 mr-1 text-green-600" />
               Dostupné slevy:
             </h4>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
               {DISCOUNTS.map((discount) => (
-                <div key={discount.days} className="border rounded-md p-2 text-center bg-green-50">
-                  <div className="text-sm font-medium text-green-700">{discount.label}</div>
-                  <div className="text-lg font-bold text-green-600">-{discount.percentage}%</div>
-                  <div className="text-xs text-green-600">od {discount.days} dní</div>
+                <div key={discount.days} className="border rounded-md p-1.5 sm:p-2 text-center bg-green-50">
+                  <div className="text-xs sm:text-sm font-medium text-green-700">{discount.label}</div>
+                  <div className="text-base sm:text-lg font-bold text-green-600">-{discount.percentage}%</div>
+                  <div className="text-[10px] sm:text-xs text-green-600">od {discount.days} dní</div>
                 </div>
               ))}
             </div>

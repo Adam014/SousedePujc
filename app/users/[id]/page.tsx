@@ -98,19 +98,33 @@ export default function UserProfilePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       {/* Profil header */}
-      <Card className="mb-8">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-6">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={user.avatar_url || "/placeholder.svg"} />
-              <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
-            </Avatar>
+      <Card className="mb-6 sm:mb-8">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            {/* Avatar */}
+            <div className="flex items-center gap-4 sm:block">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24">
+                <AvatarImage src={user.avatar_url || "/placeholder.svg"} />
+                <AvatarFallback className="text-xl sm:text-2xl">{user.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              {/* Mobile: Name and badge inline with avatar */}
+              <div className="sm:hidden">
+                <div className="flex items-center flex-wrap gap-2 mb-1">
+                  <h1 className="text-xl font-bold">{user.name}</h1>
+                  <Badge className={user.is_verified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                    <Shield className="h-3 w-3 mr-1" />
+                    {user.is_verified ? "Ověřený" : "Neověřený"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
 
             <div className="flex-1">
-              <div className="flex items-center space-x-3 mb-2">
-                <h1 className="text-3xl font-bold">{user.name}</h1>
+              {/* Desktop: Name and badge */}
+              <div className="hidden sm:flex items-center space-x-3 mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">{user.name}</h1>
                 <Badge className={user.is_verified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
                   <Shield className="h-3 w-3 mr-1" />
                   {user.is_verified ? "Ověřený" : "Neověřený"}
@@ -118,12 +132,12 @@ export default function UserProfilePage() {
               </div>
 
               {/* Kontaktní informace podle nastavení soukromí */}
-              <div className="space-y-2 mb-3">
+              <div className="space-y-1 sm:space-y-2 mb-3 text-sm sm:text-base">
                 {privacySettings.show_email && (
                   <p className="text-gray-600">
                     <span className="inline-flex items-center">
                       <Mail className="h-4 w-4 mr-1" />
-                      {user.email}
+                      <span className="truncate">{user.email}</span>
                     </span>
                   </p>
                 )}
@@ -148,17 +162,17 @@ export default function UserProfilePage() {
               </div>
 
               {user.bio && privacySettings.show_bio && (
-                <div className="text-gray-600 mb-3">
+                <div className="text-gray-600 mb-3 text-sm sm:text-base">
                   <p className="font-medium text-sm text-gray-500 mb-1">O mně:</p>
                   <p>{user.bio}</p>
                 </div>
               )}
 
-              <div className="flex items-center space-x-6">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm sm:text-base">
                 <RatingDisplay rating={user.reputation_score} reviewCount={userReviews.length} size="md" />
 
                 <div className="flex items-center space-x-2">
-                  <Package className="h-5 w-5 text-blue-600" />
+                  <Package className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                   <span>{userItems.length} předmětů</span>
                 </div>
               </div>
@@ -168,19 +182,19 @@ export default function UserProfilePage() {
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="items" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="items">Předměty k půjčení</TabsTrigger>
-          <TabsTrigger value="reviews">Hodnocení</TabsTrigger>
+      <Tabs defaultValue="items" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 h-auto gap-1 p-1">
+          <TabsTrigger value="items" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Předměty k půjčení</TabsTrigger>
+          <TabsTrigger value="reviews" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Hodnocení</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="items" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Předměty k půjčení ({userItems.length})</h2>
+        <TabsContent value="items" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Předměty k půjčení ({userItems.length})</h2>
           <ItemGrid items={userItems} />
         </TabsContent>
 
-        <TabsContent value="reviews" className="space-y-6">
-          <h2 className="text-2xl font-semibold">Hodnocení ({userReviews.length})</h2>
+        <TabsContent value="reviews" className="space-y-4 sm:space-y-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">Hodnocení ({userReviews.length})</h2>
 
           <div className="space-y-4">
             {userReviews.length === 0 ? (
