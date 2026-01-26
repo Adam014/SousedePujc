@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Label } from "@/components/ui/label"
 import { db } from "@/lib/database"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -169,12 +169,13 @@ export default function BookingCalendar({
           // Přeskočíme zrušené rezervace
           if (booking.status === "cancelled") return
 
-          const start = new Date(booking.start_date)
-          const end = new Date(booking.end_date)
+          // Parse dates in local timezone to avoid UTC shift issues
+          // "2024-01-26" parsed as UTC would shift to previous day in CET/CEST
+          const startParts = booking.start_date.split("-").map(Number)
+          const endParts = booking.end_date.split("-").map(Number)
 
-          // Zajistíme, že datum je správně nastaveno (bez časové složky)
-          start.setHours(0, 0, 0, 0)
-          end.setHours(0, 0, 0, 0)
+          const start = new Date(startParts[0], startParts[1] - 1, startParts[2], 0, 0, 0, 0)
+          const end = new Date(endParts[0], endParts[1] - 1, endParts[2], 0, 0, 0, 0)
 
           // Přidáme všechny dny mezi začátkem a koncem rezervace
           for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -197,6 +198,42 @@ export default function BookingCalendar({
     loadBookedDates()
   }, [itemId])
 
+  // Validate and adjust initial "from" date if it's unavailable (runs once after loading)
+  const hasAdjustedInitialDate = useRef(false)
+  useEffect(() => {
+    if (loading || hasAdjustedInitialDate.current) return
+
+    // If "from" is set but unavailable, find the next available date
+    if (selectedDates.from && !selectedDates.to) {
+      const checkDate = new Date(selectedDates.from)
+      checkDate.setHours(0, 0, 0, 0)
+
+      const isUnavailable = bookedDates.some(
+        (bd) => isSameDay(bd.date, checkDate) && bd.status !== "cancelled"
+      )
+
+      if (isUnavailable) {
+        // Find next available date within 90 days
+        for (let i = 1; i < 90; i++) {
+          const nextDate = new Date(checkDate)
+          nextDate.setDate(nextDate.getDate() + i)
+
+          const nextUnavailable = bookedDates.some(
+            (bd) => isSameDay(bd.date, nextDate) && bd.status !== "cancelled"
+          )
+
+          if (!nextUnavailable) {
+            onSelect({ from: nextDate, to: undefined })
+            hasAdjustedInitialDate.current = true
+            break
+          }
+        }
+      } else {
+        hasAdjustedInitialDate.current = true
+      }
+    }
+  }, [loading, bookedDates])
+
   // Funkce pro kontrolu, zda je datum rezervováno
   const isDateBooked = (date: Date) => {
     return bookedDates.some(
@@ -211,11 +248,11 @@ export default function BookingCalendar({
     return bookedDates.some((bookedDate) => isSameDay(bookedDate.date, date) && bookedDate.status === "pending")
   }
 
-  // Funkce pro kontrolu, zda je datum zakázáno
+  // Funkce pro kontrolu, zda je datum zakázáno (včetně pending rezervací)
   const isDateDisabled = (date: Date) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    return isBefore(date, today) || isDateBooked(date)
+    return isBefore(date, today) || isDateBooked(date) || isDatePending(date)
   }
 
   // Funkce pro kontrolu, zda je datum dnešní
@@ -261,6 +298,19 @@ export default function BookingCalendar({
     )
   }
 
+  // Funkce pro kontrolu, zda je rozsah dat bez rezervací
+  const isRangeAvailable = (from: Date, to: Date) => {
+    const start = isBefore(from, to) ? from : to
+    const end = isAfter(from, to) ? from : to
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (isDateBooked(d) || isDatePending(d)) {
+        return false
+      }
+    }
+    return true
+  }
+
   // Funkce pro výběr data
   const handleDateClick = (date: Date) => {
     if (isDateDisabled(date)) return
@@ -270,11 +320,17 @@ export default function BookingCalendar({
       onSelect({ from: date, to: undefined })
     } else {
       // Máme již vybraný začátek, vybereme konec
-      if (isBefore(date, selectedDates.from)) {
-        onSelect({ from: date, to: selectedDates.from })
-      } else {
-        onSelect({ from: selectedDates.from, to: date })
+      const newFrom = isBefore(date, selectedDates.from) ? date : selectedDates.from
+      const newTo = isBefore(date, selectedDates.from) ? selectedDates.from : date
+
+      // Kontrola, zda je celý rozsah dostupný
+      if (!isRangeAvailable(newFrom, newTo)) {
+        // Vybraný rozsah obsahuje rezervované dny - resetujeme výběr a začneme znovu
+        onSelect({ from: date, to: undefined })
+        return
       }
+
+      onSelect({ from: newFrom, to: newTo })
     }
   }
 
@@ -304,7 +360,40 @@ export default function BookingCalendar({
     from.setHours(0, 0, 0, 0)
     const to = new Date(from)
     to.setDate(to.getDate() + days - 1)
-    onSelect({ from, to })
+
+    // Kontrola dostupnosti rozsahu
+    if (!isRangeAvailable(from, to)) {
+      // Najdeme první dostupný den a zkusíme od něj
+      let startDate = new Date(from)
+      let found = false
+
+      // Hledáme v následujících 90 dnech
+      for (let i = 0; i < 90 && !found; i++) {
+        const checkFrom = new Date(startDate)
+        checkFrom.setDate(checkFrom.getDate() + i)
+        const checkTo = new Date(checkFrom)
+        checkTo.setDate(checkTo.getDate() + days - 1)
+
+        if (isRangeAvailable(checkFrom, checkTo)) {
+          onSelect({ from: checkFrom, to: checkTo })
+          found = true
+        }
+      }
+
+      // Pokud nenajdeme vhodný rozsah, vybereme pouze první dostupný den
+      if (!found) {
+        for (let i = 0; i < 90; i++) {
+          const checkDate = new Date(from)
+          checkDate.setDate(checkDate.getDate() + i)
+          if (!isDateDisabled(checkDate)) {
+            onSelect({ from: checkDate, to: undefined })
+            break
+          }
+        }
+      }
+    } else {
+      onSelect({ from, to })
+    }
   }
 
   // Výpočet celkové ceny a slevy
@@ -449,34 +538,42 @@ export default function BookingCalendar({
             const isRangeEnd = isDateRangeEnd(day.date)
             const isInRange = isDateInRange(day.date)
 
-            let className = "h-10 w-full flex items-center justify-center rounded-full text-sm"
+            // Determine the appropriate styles based on state
+            const isStartOrEnd = isRangeStart || isRangeEnd
+            const isPastDate = isBefore(day.date, today) && !isSameDay(day.date, today)
+
+            let className = "h-10 w-full flex items-center justify-center rounded-full text-sm select-none transition-colors"
 
             if (!day.isCurrentMonth) {
               className += " text-gray-300"
-            } else if (isDisabled) {
+            } else if (isStartOrEnd) {
+              // Selected start/end dates - highest priority
+              className += " cursor-pointer bg-blue-500 text-white font-bold"
+            } else if (isInRange) {
+              // Dates in between selection
+              className += " cursor-pointer bg-blue-100 text-blue-800 hover:bg-blue-200"
+            } else if (isBooked) {
+              // Confirmed/active bookings - red, not clickable
+              className += " bg-red-100 text-red-800 line-through cursor-not-allowed"
+            } else if (isPending) {
+              // Pending bookings - yellow, not clickable
+              className += " bg-yellow-100 text-yellow-800 cursor-not-allowed"
+            } else if (isPastDate) {
+              // Past dates - gray, not clickable
               className += " text-gray-400 cursor-not-allowed"
+            } else if (isTodayDate) {
+              className += " cursor-pointer bg-blue-100 text-blue-800 font-bold hover:bg-blue-200"
             } else {
+              // Normal available dates
               className += " cursor-pointer hover:bg-gray-100"
             }
 
-            if (isBooked) {
-              className += " bg-red-100 text-red-800 line-through"
-            } else if (isPending) {
-              className += " bg-yellow-100 text-yellow-800"
-            } else if (isTodayDate) {
-              className += " bg-blue-100 text-blue-800 font-bold"
-            }
-
-            if (isRangeStart) {
-              className += " bg-blue-500 text-white font-bold"
-            } else if (isRangeEnd) {
-              className += " bg-blue-500 text-white font-bold"
-            } else if (isInRange) {
-              className += " bg-blue-100 text-blue-800"
-            }
-
             return (
-              <div key={index} className={className} onClick={() => !isDisabled && handleDateClick(day.date)}>
+              <div
+                key={index}
+                className={className}
+                onClick={() => !isDisabled && handleDateClick(day.date)}
+              >
                 {format(day.date, "d")}
               </div>
             )
@@ -617,9 +714,10 @@ export default function BookingCalendar({
         <div>
           <h4 className="text-sm font-medium text-blue-700 mb-1">Tipy pro rezervaci:</h4>
           <ul className="text-xs text-blue-600 space-y-1 list-disc pl-4">
-            <li>Vyberte první datum pro začátek rezervace a druhé datum pro konec.</li>
+            <li>Začátek rezervace je automaticky nastaven na dnešek - klikněte na datum konce.</li>
+            <li>Pro změnu začátku klikněte na jiné datum a poté vyberte konec.</li>
             <li>Červeně označené dny jsou již rezervované a nelze je vybrat.</li>
-            <li>Žlutě označené dny mají čekající rezervace, které ještě nebyly potvrzeny.</li>
+            <li>Žlutě označené dny mají čekající rezervace a nelze je vybrat.</li>
             <li>Pro rychlý výběr můžete použít přednastavené časové úseky.</li>
             {DISCOUNTS.length > 0 && <li>Při rezervaci na delší dobu získáte automatickou slevu.</li>}
           </ul>

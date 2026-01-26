@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "./types"
 import { db } from "./database"
 import { supabase } from "./supabase"
@@ -43,60 +43,133 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Use refs to track state in callbacks without stale closures
+  const isMountedRef = useRef(true)
+  const isLoadingUserRef = useRef(false)
+  const isInitializedRef = useRef(false)
+  const userRef = useRef<User | null>(null)
+
+  // Keep userRef in sync with user state
   useEffect(() => {
-    const loadUser = async () => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    const loadUserData = async (email: string, emailConfirmed: boolean): Promise<{ user: User | null; error: boolean }> => {
+      try {
+        const userData = await db.getUserByEmail(email)
+        if (userData) {
+          // Aktualizujeme stav ověření na základě Supabase
+          if (emailConfirmed && !userData.is_verified) {
+            await db.updateUser(userData.id, { is_verified: true })
+            userData.is_verified = true
+          }
+          return { user: userData, error: false }
+        }
+        // User not found in database (but no error)
+        return { user: null, error: false }
+      } catch (error) {
+        console.error("Error loading user data:", error)
+        // Return error flag so we don't sign out on network errors
+        return { user: null, error: true }
+      }
+    }
+
+    const initializeAuth = async () => {
+      if (isLoadingUserRef.current) return
+      isLoadingUserRef.current = true
+
       try {
         // Zkontrolujeme, zda je uživatel přihlášen v Supabase
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (session?.user) {
-          // Získáme uživatelská data z naší databáze
-          const userData = await db.getUserByEmail(session.user.email || "")
-          if (userData) {
-            // Aktualizujeme stav ověření na základě Supabase
-            if (session.user.email_confirmed_at && !userData.is_verified) {
-              await db.updateUser(userData.id, { is_verified: true })
-              userData.is_verified = true
-            }
-            setUser(userData)
-          } else {
-            // Pokud uživatel existuje v Supabase, ale ne v naší DB, odhlásíme ho
+        if (session?.user && isMountedRef.current) {
+          const result = await loadUserData(
+            session.user.email || "",
+            !!session.user.email_confirmed_at
+          )
+
+          if (result.user && isMountedRef.current) {
+            setUser(result.user)
+          } else if (!result.user && !result.error && isMountedRef.current) {
+            // User not found in our DB (not a network error) - sign out
             await supabase.auth.signOut()
           }
+          // If there was an error, keep user logged in (don't sign out on network errors)
         }
       } catch (error) {
-        console.error("Error loading user:", error)
+        console.error("Error initializing auth:", error)
       } finally {
-        setLoading(false)
+        if (isMountedRef.current) {
+          setLoading(false)
+          isInitializedRef.current = true
+        }
+        isLoadingUserRef.current = false
       }
     }
 
     // Načteme uživatele při startu
-    loadUser()
+    initializeAuth()
 
     // Nastavíme listener pro změny autentizačního stavu
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Ignorujeme INITIAL_SESSION - to zpracovává initializeAuth
+      if (event === "INITIAL_SESSION") return
+
       if (event === "SIGNED_IN" && session?.user) {
-        const userData = await db.getUserByEmail(session.user.email || "")
-        if (userData) {
-          // Aktualizujeme stav ověření
-          if (session.user.email_confirmed_at && !userData.is_verified) {
-            await db.updateUser(userData.id, { is_verified: true })
-            userData.is_verified = true
+        // Prevent duplicate loading
+        if (isLoadingUserRef.current) return
+        isLoadingUserRef.current = true
+
+        try {
+          const result = await loadUserData(
+            session.user.email || "",
+            !!session.user.email_confirmed_at
+          )
+          if (result.user && isMountedRef.current) {
+            setUser(result.user)
           }
-          setUser(userData)
+          // Don't sign out on errors during auth state change
+        } catch (error) {
+          console.error("Error in auth state change:", error)
+        } finally {
+          isLoadingUserRef.current = false
         }
       } else if (event === "SIGNED_OUT") {
-        setUser(null)
+        if (isMountedRef.current) {
+          setUser(null)
+        }
+      } else if (event === "TOKEN_REFRESHED" && session?.user) {
+        // Token byl obnoven, zkontrolujeme že máme správného uživatele
+        if (!userRef.current && isMountedRef.current && !isLoadingUserRef.current) {
+          isLoadingUserRef.current = true
+          try {
+            const result = await loadUserData(
+              session.user.email || "",
+              !!session.user.email_confirmed_at
+            )
+            if (result.user && isMountedRef.current) {
+              setUser(result.user)
+            }
+            // Don't sign out on errors during token refresh
+          } catch (error) {
+            console.error("Error refreshing user on token refresh:", error)
+          } finally {
+            isLoadingUserRef.current = false
+          }
+        }
       }
     })
 
     // Cleanup listener při unmount
     return () => {
+      isMountedRef.current = false
       subscription.unsubscribe()
     }
   }, [])

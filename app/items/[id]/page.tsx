@@ -70,10 +70,17 @@ export default function ItemDetailPage() {
   const [item, setItem] = useState<Item | null>(null)
   const [loading, setLoading] = useState(true)
   const [bookingLoading, setBookingLoading] = useState(false)
+  // Initialize with today as the start date
   const [selectedDates, setSelectedDates] = useState<{
     from: Date | undefined
     to: Date | undefined
-  }>({ from: undefined, to: undefined })
+  }>(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return { from: today, to: undefined }
+  })
+  // Key to force calendar refresh after booking
+  const [calendarKey, setCalendarKey] = useState(0)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const [isNetworkError, setIsNetworkError] = useState(false)
@@ -146,11 +153,19 @@ export default function ItemDetailPage() {
     setError("")
 
     try {
+      // Format dates in local timezone to avoid UTC shift issues
+      const formatDateLocal = (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
       const bookingData: Omit<Booking, "id" | "created_at" | "updated_at"> = {
         item_id: item.id,
         borrower_id: user.id,
-        start_date: selectedDates.from.toISOString().split("T")[0],
-        end_date: selectedDates.to.toISOString().split("T")[0],
+        start_date: formatDateLocal(selectedDates.from),
+        end_date: formatDateLocal(selectedDates.to),
         status: "pending",
         total_amount: calculateTotalAmount(),
         message: message.trim() || undefined,
@@ -184,8 +199,13 @@ export default function ItemDetailPage() {
       }
 
       setSuccess("Žádost o půjčení byla odeslána! Majitel vás bude kontaktovat.")
-      setSelectedDates({ from: undefined, to: undefined })
+      // Reset to today and refresh calendar
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      setSelectedDates({ from: today, to: undefined })
       setMessage("")
+      // Increment key to force calendar to reload booked dates
+      setCalendarKey(prev => prev + 1)
     } catch (error: any) {
       console.error("Error creating booking:", error)
 
@@ -626,6 +646,7 @@ export default function ItemDetailPage() {
                   <div>
                     <div className="mt-2">
                       <BookingCalendar
+                        key={calendarKey}
                         itemId={item.id}
                         selectedDates={selectedDates}
                         onSelect={setSelectedDates}
