@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
+import { fuzzyMatchItems } from "@/lib/search"
 import ItemGrid from "@/components/items/item-grid"
 import CategoryFilter from "@/components/categories/category-filter"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
@@ -38,6 +39,76 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState<SortValue>("newest")
 
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  
+  // Sync URL params to state on initial load
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get("category")
+    const searchFromUrl = searchParams.get("search")
+    const sortFromUrl = searchParams.get("sort") as SortValue
+    const availabilityFromUrl = searchParams.get("availability") as "all" | "available" | "unavailable"
+    const pageFromUrl = parseInt(searchParams.get("page") || "1")
+
+    if (categoryFromUrl) setSelectedCategory(categoryFromUrl)
+    if (searchFromUrl) setSearchQuery(searchFromUrl)
+    if (sortFromUrl && ["newest", "oldest", "price_asc", "price_desc", "name_asc", "name_desc"].includes(sortFromUrl)) {
+      setSortBy(sortFromUrl)
+    }
+    if (availabilityFromUrl && ["all", "available", "unavailable"].includes(availabilityFromUrl)) {
+      setFilters(prev => ({ ...prev, availability: availabilityFromUrl }))
+    }
+    if (pageFromUrl > 0) setCurrentPage(pageFromUrl)
+  }, []) // Only run once on mount
+
+  // Update URL when filters change
+  const updateUrl = useCallback((updates: Record<string, string | number | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === "" || value === "all" || value === "newest" || (key === "page" && value === 1)) {
+        params.delete(key)
+      } else {
+        params.set(key, String(value))
+      }
+    })
+
+    const queryString = params.toString()
+    router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }, [router, pathname, searchParams])
+
+  // Handlers that update both state and URL
+  const handleCategoryChange = useCallback((category: string | null) => {
+    setSelectedCategory(category)
+    setCurrentPage(1)
+    updateUrl({ category, page: null })
+  }, [updateUrl])
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query)
+    setCurrentPage(1)
+    updateUrl({ search: query || null, page: null })
+  }, [updateUrl])
+
+  const handleSortChange = useCallback((sort: SortValue) => {
+    setSortBy(sort)
+    updateUrl({ sort: sort === "newest" ? null : sort })
+  }, [updateUrl])
+
+  const handleFilterChange = useCallback((newFilters: FilterValues) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+    updateUrl({
+      availability: newFilters.availability === "all" ? null : newFilters.availability,
+      page: null
+    })
+  }, [updateUrl])
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+    updateUrl({ page: page === 1 ? null : page })
+  }, [updateUrl])
 
   const loadItems = useCallback(async () => {
     try {
@@ -79,13 +150,7 @@ export default function HomePage() {
     loadItems()
   }, [])
 
-  useEffect(() => {
-    const searchFromUrl = searchParams.get("search")
-    if (searchFromUrl) {
-      setSearchQuery(searchFromUrl)
-    }
-  }, [searchParams])
-
+  
   // Funkce pro filtrování a řazení předmětů - optimalizováno
   const filteredAndSortedItems = useMemo(() => {
     let result = [...items]
@@ -95,8 +160,13 @@ export default function HomePage() {
       result = result.filter((item) => item.category_id === selectedCategory)
     }
 
-    // Filtrování podle vyhledávání
-    if (searchQuery) {
+    // Filtrování podle vyhledávání (fuzzy search)
+    if (searchQuery && searchQuery.length >= 2) {
+      // Use professional fuzzy search
+      const fuzzyResults = fuzzyMatchItems(result, searchQuery)
+      result = fuzzyResults
+    } else if (searchQuery) {
+      // Basic search for 1 char queries
       const query = searchQuery.toLowerCase()
       result = result.filter(
         (item) =>
@@ -178,7 +248,7 @@ export default function HomePage() {
     // Vždy zobrazit první stránku
     pages.push(
       <PaginationItem key="page-1">
-        <PaginationLink isActive={currentPage === 1} onClick={() => setCurrentPage(1)}>
+        <PaginationLink isActive={currentPage === 1} onClick={() => handlePageChange(1)}>
           1
         </PaginationLink>
       </PaginationItem>,
@@ -199,7 +269,7 @@ export default function HomePage() {
 
       pages.push(
         <PaginationItem key={`page-${i}`}>
-          <PaginationLink isActive={currentPage === i} onClick={() => setCurrentPage(i)}>
+          <PaginationLink isActive={currentPage === i} onClick={() => handlePageChange(i)}>
             {i}
           </PaginationLink>
         </PaginationItem>,
@@ -219,7 +289,7 @@ export default function HomePage() {
     if (totalPages > 1) {
       pages.push(
         <PaginationItem key={`page-${totalPages}`}>
-          <PaginationLink isActive={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>
+          <PaginationLink isActive={currentPage === totalPages} onClick={() => handlePageChange(totalPages)}>
             {totalPages}
           </PaginationLink>
         </PaginationItem>,
@@ -227,7 +297,7 @@ export default function HomePage() {
     }
 
     return pages
-  }, [currentPage, totalPages])
+  }, [currentPage, totalPages, handlePageChange])
 
   // Funkce pro reset filtrů
   const handleResetFilters = useCallback(() => {
@@ -238,7 +308,10 @@ export default function HomePage() {
       availability: "all",
     })
     setSortBy("newest")
-  }, [minMaxPrice])
+    setCurrentPage(1)
+    // Clear all URL params
+    router.push(pathname, { scroll: false })
+  }, [minMaxPrice, router, pathname])
 
   if (loading) {
     return (
@@ -316,16 +389,16 @@ export default function HomePage() {
         </p>
 
         {/* Vyhledávání */}
-        <SearchAutocomplete placeholder="Co hledáte?" onSearch={setSearchQuery} className="max-w-xs sm:max-w-md mx-auto" />
+        <SearchAutocomplete placeholder="Co hledáte?" onSearch={handleSearchChange} className="max-w-xs sm:max-w-md mx-auto" />
       </div>
 
       {/* Filtry */}
-      <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+      <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
 
       {/* Pokročilé filtry a řazení */}
       <ItemFilters
-        onFilterChange={setFilters}
-        onSortChange={setSortBy}
+        onFilterChange={handleFilterChange}
+        onSortChange={handleSortChange}
         minPrice={minMaxPrice.min}
         maxPrice={minMaxPrice.max}
         activeFilters={filters}
@@ -353,7 +426,7 @@ export default function HomePage() {
               <PaginationContent className="gap-1 sm:gap-2">
                 <PaginationItem>
                   <PaginationPrevious
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
                     disabled={currentPage === 1}
                     className="touch-target-sm"
                   />
@@ -373,7 +446,7 @@ export default function HomePage() {
 
                 <PaginationItem>
                   <PaginationNext
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
                     disabled={currentPage === totalPages}
                     className="touch-target-sm"
                   />

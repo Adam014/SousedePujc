@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -32,6 +32,9 @@ export default function NotificationDropdown() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(user?.id || null)
   const [isOpen, setIsOpen] = useState(false)
   const router = useRouter()
+
+  // Memoize displayed notifications to avoid recalculating on every render
+  const displayedNotifications = useMemo(() => notifications.slice(0, 10), [notifications])
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id)
@@ -108,7 +111,7 @@ export default function NotificationDropdown() {
           </div>
         ) : (
           <ScrollArea className="h-96">
-            {notifications.slice(0, 10).map((notification) => (
+            {displayedNotifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
                 className="p-3 cursor-pointer"

@@ -946,6 +946,25 @@ export const db = {
     return true
   },
 
+  // Batch mark all chat rooms as read (fixes N+1 in messages page)
+  async markAllChatRoomsAsRead(roomIds: string[], userId: string): Promise<boolean> {
+    if (roomIds.length === 0) return true
+
+    const { error } = await supabase
+      .from("chat_messages")
+      .update({ is_read: true })
+      .in("room_id", roomIds)
+      .neq("sender_id", userId)
+      .eq("is_read", false)
+
+    if (error) {
+      console.error("Error batch marking chat messages as read:", error)
+      throw error
+    }
+
+    return true
+  },
+
   async getUnreadMessageCount(userId: string): Promise<number> {
     // Získáme všechny místnosti, kde je uživatel
     const { data: rooms, error: roomsError } = await supabase

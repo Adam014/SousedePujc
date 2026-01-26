@@ -13,6 +13,8 @@ import { MapPin, Shield, CalendarIcon, MessageSquare, Edit, Trash2, AlertTriangl
 import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
+import { CONDITION_LABELS_CZ, CONDITION_COLORS, RENTAL_DISCOUNTS, findApplicableDiscount } from "@/lib/constants"
+import { formatDateCZ } from "@/lib/utils"
 import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
 import DatabaseError from "@/components/error/database-error"
@@ -30,38 +32,6 @@ import {
 } from "@/components/ui/dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-const conditionLabels = {
-  excellent: "Výborný",
-  very_good: "Velmi dobrý",
-  good: "Dobrý",
-  fair: "Uspokojivý",
-  poor: "Špatný",
-}
-
-const conditionColors = {
-  excellent: "bg-green-100 text-green-800",
-  very_good: "bg-blue-100 text-blue-800",
-  good: "bg-yellow-100 text-yellow-800",
-  fair: "bg-orange-100 text-orange-800",
-  poor: "bg-red-100 text-red-800",
-}
-
-// Slevy pro delší rezervace
-const DISCOUNTS = [
-  { days: 7, percentage: 10, label: "Týden" },
-  { days: 14, percentage: 15, label: "2 týdny" },
-  { days: 30, percentage: 20, label: "Měsíc" },
-]
-
-// Pomocná funkce pro nalezení aplikovatelné slevy
-const findApplicableDiscount = (days: number) => {
-  // Seřadíme slevy od největší po nejmenší
-  const sortedDiscounts = [...DISCOUNTS].sort((a, b) => b.days - a.days)
-
-  // Najdeme první slevu, která je aplikovatelná
-  return sortedDiscounts.find((discount) => days >= discount.days) || null
-}
 
 export default function ItemDetailPage() {
   const params = useParams()
@@ -171,7 +141,7 @@ export default function ItemDetailPage() {
         message: message.trim() || undefined,
       }
 
-      await db.createBooking(bookingData)
+      const newBooking = await db.createBooking(bookingData)
 
       // Vytvoření notifikace pro majitele
       await db.createNotification({
@@ -181,6 +151,13 @@ export default function ItemDetailPage() {
         type: "booking_request",
         is_read: false,
       })
+
+      // Send email notification to owner (non-blocking)
+      fetch('/api/emails/booking-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: newBooking.id, status: 'pending' })
+      }).catch(console.error)
 
       // Vytvoření chat roomu pro komunikaci - now returns just the ID
       const chatRoomId = await db.createChatRoom({
@@ -340,7 +317,7 @@ export default function ItemDetailPage() {
                       </Dialog>
                     </>
                   )}
-                  <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                  <Badge className={CONDITION_COLORS[item.condition]}>{CONDITION_LABELS_CZ[item.condition]}</Badge>
                 </div>
               </div>
 
@@ -353,7 +330,7 @@ export default function ItemDetailPage() {
                 )}
                 <div className="flex items-center">
                   <CalendarIcon className="h-4 w-4 mr-1 flex-shrink-0" />
-                  <span>Přidáno {new Date(item.created_at).toLocaleDateString("cs-CZ")}</span>
+                  <span>Přidáno {formatDateCZ(item.created_at)}</span>
                 </div>
               </div>
 
@@ -391,7 +368,7 @@ export default function ItemDetailPage() {
                           </li>
                           <li className="flex justify-between">
                             <span className="text-gray-600">Stav:</span>
-                            <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+                            <Badge className={CONDITION_COLORS[item.condition]}>{CONDITION_LABELS_CZ[item.condition]}</Badge>
                           </li>
                           {item.brand && (
                             <li className="flex justify-between">
@@ -418,7 +395,7 @@ export default function ItemDetailPage() {
                       </CardHeader>
                       <CardContent>
                         <ul className="space-y-2">
-                          {DISCOUNTS.map((discount) => (
+                          {RENTAL_DISCOUNTS.map((discount) => (
                             <li key={discount.days} className="flex justify-between items-center">
                               <span className="text-gray-600">
                                 {discount.label} ({discount.days}+ dní):
@@ -546,7 +523,7 @@ export default function ItemDetailPage() {
                         <div className="bg-gray-50 p-3 rounded-md text-center">
                           <div className="text-gray-500 text-sm">Člen od</div>
                           <div className="font-medium">
-                            {new Date(item.owner?.created_at || Date.now()).toLocaleDateString("cs-CZ")}
+                            {formatDateCZ(item.owner?.created_at || new Date())}
                           </div>
                         </div>
                         <div className="bg-gray-50 p-3 rounded-md text-center">
@@ -576,7 +553,7 @@ export default function ItemDetailPage() {
                                 </div>
                                 <p className="text-sm text-gray-600">{review.comment}</p>
                                 <div className="text-xs text-gray-400 mt-1">
-                                  {new Date(review.created_at).toLocaleDateString("cs-CZ")}
+                                  {formatDateCZ(review.created_at)}
                                 </div>
                               </div>
                             ))}

@@ -21,10 +21,9 @@ export default function MessagesPage() {
         const rooms = await db.getChatRoomsByUser(user.id)
         setChatRooms(rooms)
 
-        // Označíme všechny zprávy jako přečtené
-        for (const room of rooms) {
-          await db.markChatMessagesAsRead(room.id, user.id)
-        }
+        // Batch mark all messages as read (single query instead of N queries)
+        const roomIds = rooms.map(room => room.id)
+        await db.markAllChatRoomsAsRead(roomIds, user.id)
       } catch (error) {
         console.error("Error loading chat rooms:", error)
       } finally {

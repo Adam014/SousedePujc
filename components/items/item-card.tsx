@@ -5,26 +5,11 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin } from "lucide-react"
 import type { Item } from "@/lib/types"
+import { CONDITION_LABELS_CZ, CONDITION_COLORS } from "@/lib/constants"
 import RatingDisplay from "@/components/ui/rating-display"
 
 interface ItemCardProps {
   item: Item
-}
-
-const conditionLabels = {
-  excellent: "Výborný",
-  very_good: "Velmi dobrý",
-  good: "Dobrý",
-  fair: "Uspokojivý",
-  poor: "Špatný",
-}
-
-const conditionColors = {
-  excellent: "bg-green-100 text-green-800",
-  very_good: "bg-blue-100 text-blue-800",
-  good: "bg-yellow-100 text-yellow-800",
-  fair: "bg-orange-100 text-orange-800",
-  poor: "bg-red-100 text-red-800",
 }
 
 export default function ItemCard({ item }: ItemCardProps) {
@@ -65,7 +50,7 @@ export default function ItemCard({ item }: ItemCardProps) {
         <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description || ""}</p>
 
         <div className="flex items-center justify-between mb-3">
-          <Badge className={conditionColors[item.condition]}>{conditionLabels[item.condition]}</Badge>
+          <Badge className={CONDITION_COLORS[item.condition]}>{CONDITION_LABELS_CZ[item.condition]}</Badge>
           <span className="font-bold text-lg bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
             {item.daily_rate === 0 ? "Zdarma" : `${item.daily_rate} Kč/den`}
           </span>

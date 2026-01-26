@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Star, Shield, Package, Calendar, MessageSquare, MapPin, Mail, Phone } f
 import type { Item, Booking, Review, ChatRoom } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
+import { formatDateCZ } from "@/lib/utils"
 import ItemGrid from "@/components/items/item-grid"
 import Link from "next/link"
 import BookingCard from "@/components/bookings/booking-card"
@@ -104,6 +105,27 @@ export default function ProfilePage() {
       setCurrentAvatarUrl(user.avatar_url || null)
     }
   }, [user])
+
+  // Memoize booking counts (currently recalculated every render)
+  const ownerBookingCounts = useMemo(() => ({
+    pending: ownerBookings.filter((b) => b.status === "pending").length,
+    confirmed: ownerBookings.filter((b) => b.status === "confirmed").length,
+    cancelled: ownerBookings.filter((b) => b.status === "cancelled").length,
+  }), [ownerBookings])
+
+  const userBookingCounts = useMemo(() => ({
+    pending: userBookings.filter((b) => b.status === "pending").length,
+    confirmed: userBookings.filter((b) => b.status === "confirmed").length,
+  }), [userBookings])
+
+  // Memoize sorted owner bookings
+  const sortedOwnerBookings = useMemo(() => {
+    return [...ownerBookings].sort((a, b) => {
+      if (a.status === "pending" && b.status !== "pending") return -1
+      if (b.status === "pending" && a.status !== "pending") return 1
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [ownerBookings])
 
   if (authLoading) {
     return (
@@ -290,7 +312,7 @@ export default function ProfilePage() {
                 <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-                      {ownerBookings.filter((b) => b.status === "pending").length}
+                      {ownerBookingCounts.pending}
                     </div>
                     <div className="text-xs sm:text-sm text-yellow-700">Čeká</div>
                   </div>
@@ -301,7 +323,7 @@ export default function ProfilePage() {
                 <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-green-600">
-                      {ownerBookings.filter((b) => b.status === "confirmed").length}
+                      {ownerBookingCounts.confirmed}
                     </div>
                     <div className="text-xs sm:text-sm text-green-700">Potvrzené</div>
                   </div>
@@ -312,7 +334,7 @@ export default function ProfilePage() {
                 <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-red-600">
-                      {ownerBookings.filter((b) => b.status === "cancelled").length}
+                      {ownerBookingCounts.cancelled}
                     </div>
                     <div className="text-xs sm:text-sm text-red-700">Zamítnuté</div>
                   </div>
@@ -328,13 +350,7 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
             ) : (
-              ownerBookings
-                .sort((a, b) => {
-                  if (a.status === "pending" && b.status !== "pending") return -1
-                  if (b.status === "pending" && a.status !== "pending") return 1
-                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                })
-                .map((booking) => <BookingRequestCard key={booking.id} booking={booking} />)
+              sortedOwnerBookings.map((booking) => <BookingRequestCard key={booking.id} booking={booking} />)
             )}
           </div>
         </TabsContent>
@@ -348,7 +364,7 @@ export default function ProfilePage() {
                 <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-yellow-600">
-                      {userBookings.filter((b) => b.status === "pending").length}
+                      {userBookingCounts.pending}
                     </div>
                     <div className="text-xs sm:text-sm text-yellow-700">Čeká na potvrzení</div>
                   </div>
@@ -359,7 +375,7 @@ export default function ProfilePage() {
                 <CardContent className="p-2 sm:p-4">
                   <div className="text-center">
                     <div className="text-xl sm:text-2xl font-bold text-green-600">
-                      {userBookings.filter((b) => b.status === "confirmed").length}
+                      {userBookingCounts.confirmed}
                     </div>
                     <div className="text-xs sm:text-sm text-green-700">Potvrzené</div>
                   </div>
@@ -415,7 +431,7 @@ export default function ProfilePage() {
                             ))}
                           </div>
                           <span className="text-sm text-gray-500">
-                            {new Date(review.created_at).toLocaleDateString("cs-CZ")}
+                            {formatDateCZ(review.created_at)}
                           </span>
                         </div>
 

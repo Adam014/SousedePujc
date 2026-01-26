@@ -8,6 +8,8 @@ import { Phone, Mail, MessageSquare, Check, X, Calendar, MapPin, Star } from "lu
 import type { Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useState, useEffect } from "react"
+import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from "@/lib/constants"
+import { formatDateCZ, formatDateRangeCZ } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -24,22 +26,6 @@ import Link from "next/link"
 interface BookingCardProps {
   booking: Booking
   isOwner: boolean
-}
-
-const statusLabels = {
-  pending: "Čeká na potvrzení",
-  confirmed: "Potvrzeno",
-  active: "Aktivní",
-  completed: "Dokončeno",
-  cancelled: "Zrušeno",
-}
-
-const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  confirmed: "bg-green-100 text-green-800",
-  active: "bg-blue-100 text-blue-800",
-  completed: "bg-gray-100 text-gray-800",
-  cancelled: "bg-red-100 text-red-800",
 }
 
 export default function BookingCard({ booking, isOwner }: BookingCardProps) {
@@ -190,8 +176,7 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-gray-600 mt-1">
                 <div className="flex items-center">
                   <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  {new Date(booking.start_date).toLocaleDateString("cs-CZ")} -{" "}
-                  {new Date(booking.end_date).toLocaleDateString("cs-CZ")}
+                  {formatDateRangeCZ(booking.start_date, booking.end_date)}
                 </div>
 
                 {booking.item?.location && (
@@ -203,7 +188,7 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
               </div>
 
               <div className="flex items-center gap-2 mt-2">
-                <Badge className={`text-xs ${statusColors[booking.status]}`}>{statusLabels[booking.status]}</Badge>
+                <Badge className={`text-xs ${BOOKING_STATUS_COLORS[booking.status]}`}>{BOOKING_STATUS_LABELS[booking.status]}</Badge>
                 <span className="text-sm font-medium text-gray-900">{booking.total_amount} Kč</span>
               </div>
             </div>

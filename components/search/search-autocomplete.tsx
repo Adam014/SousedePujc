@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
+import { createItemSearch, searchItems, fuzzyMatchItems } from "@/lib/search"
 
 interface SearchAutocompleteProps {
   placeholder?: string
@@ -35,6 +36,9 @@ export default function SearchAutocomplete({
     loadItems()
   }, [])
 
+  // Create search index when items change
+  const searchIndex = useMemo(() => createItemSearch(allItems), [allItems])
+
   useEffect(() => {
     if (query.length < 2) {
       setSuggestions([])
@@ -42,17 +46,11 @@ export default function SearchAutocomplete({
       return
     }
 
-    const filtered = allItems
-      .filter(
-        (item) =>
-          item.title.toLowerCase().includes(query.toLowerCase()) ||
-          item.description?.toLowerCase().includes(query.toLowerCase()) ||
-          item.category?.name.toLowerCase().includes(query.toLowerCase()),
-      )
-      .slice(0, 5)
+    // Use fuzzy search
+    const results = fuzzyMatchItems(allItems, query).slice(0, 5)
 
-    setSuggestions(filtered)
-    setShowSuggestions(filtered.length > 0)
+    setSuggestions(results)
+    setShowSuggestions(results.length > 0)
   }, [query, allItems])
 
   const handleSearch = (searchQuery: string) => {

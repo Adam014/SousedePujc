@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -82,15 +82,14 @@ export default function ItemFilters({
     onSortChange(value)
   }
 
-  const getActiveFilterCount = () => {
+  // Memoize active filter count
+  const activeFilterCount = useMemo(() => {
     let count = 0
     if (activeFilters.priceRange[0] > minPrice || activeFilters.priceRange[1] < maxPrice) count++
     if (activeFilters.distance) count++
     if (activeFilters.availability && activeFilters.availability !== "all") count++
     return count
-  }
-
-  const activeFilterCount = getActiveFilterCount()
+  }, [activeFilters, minPrice, maxPrice])
 
   return (
     <div className="flex flex-col sm:flex-row gap-2 mb-6">
