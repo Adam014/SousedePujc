@@ -268,7 +268,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Vytvoříme uživatele v naší databázi (neověřený)
+      // Pass the Supabase Auth UID so public.users.id matches auth.uid()
       await db.createUser({
+        id: data.user!.id,
         email: userData.email,
         name: userData.name,
         is_verified: false,

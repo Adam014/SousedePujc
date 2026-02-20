@@ -66,7 +66,7 @@ export const db = {
     return data
   },
 
-  async createUser(userData: Omit<User, "id" | "created_at" | "updated_at">): Promise<User> {
+  async createUser(userData: Omit<User, "created_at" | "updated_at">): Promise<User> {
     const { data, error } = await supabase.from("users").insert([userData]).select().single()
 
     if (error) {
@@ -285,6 +285,29 @@ export const db = {
     }
 
     return data || []
+  },
+
+  async getBookingById(id: string): Promise<Booking | null> {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        item:items!bookings_item_id_fkey(
+          *,
+          owner:users!items_owner_id_fkey(*)
+        ),
+        borrower:users!bookings_borrower_id_fkey(*)
+      `)
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      if (error.code === "PGRST116") return null
+      console.error("Error fetching booking:", error)
+      throw error
+    }
+
+    return data
   },
 
   async getBookingsByUser(userId: string): Promise<Booking[]> {
@@ -571,15 +594,13 @@ export const db = {
     return data || []
   },
 
-  async createNotification(notificationData: Omit<Notification, "id" | "created_at">): Promise<Notification> {
-    const { data, error } = await supabase.from("notifications").insert([notificationData]).select().single()
+  async createNotification(notificationData: Omit<Notification, "id" | "created_at">): Promise<void> {
+    const { error } = await supabase.from("notifications").insert([notificationData])
 
     if (error) {
       console.error("Error creating notification:", error)
       throw error
     }
-
-    return data
   },
 
   async markNotificationAsRead(id: string): Promise<Notification | null> {

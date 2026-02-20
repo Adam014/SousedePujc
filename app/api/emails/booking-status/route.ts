@@ -28,12 +28,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch booking with related data
-    const booking = await db.getBookingsByUser(bookingId).catch(() => null)
-
-    // Try to get booking by fetching all bookings and finding the one we need
-    // This is a workaround since we don't have a direct getBookingById method
-    const allBookings = await db.getBookings()
-    const targetBooking = allBookings.find(b => b.id === bookingId)
+    const targetBooking = await db.getBookingById(bookingId)
 
     if (!targetBooking) {
       return NextResponse.json(
