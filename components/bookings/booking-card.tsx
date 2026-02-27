@@ -299,8 +299,8 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
               </Dialog>
             )}
 
-            {/* Tlačítko pro hodnocení majitele (pouze pro potvrzené rezervace) */}
-            {!isOwner && booking.status === "confirmed" && (
+            {/* Tlačítko pro hodnocení majitele (pouze pro dokončené rezervace) */}
+            {!isOwner && booking.status === "completed" && (
               <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline" className="w-full touch-target-sm">
