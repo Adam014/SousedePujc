@@ -73,6 +73,7 @@ const nextConfig = {
       'fuse.js',
       '@supabase/supabase-js',
     ],
+    optimizeCss: true,
   },
   // Komprese
   compress: true,

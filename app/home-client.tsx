@@ -8,7 +8,7 @@ import { db } from "@/lib/database"
 import { fuzzyMatchItems } from "@/lib/search"
 import ItemGrid from "@/components/items/item-grid"
 import CategoryFilter from "@/components/categories/category-filter"
-import ItemFilters, { type FilterValues, type SortValue } from "@/components/items/item-filters"
+import type { FilterValues, SortValue } from "@/components/items/item-filters"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ServerOffIcon as DatabaseOff, RefreshCcw } from "lucide-react"
@@ -17,6 +17,9 @@ const SearchAutocomplete = dynamic(() => import("@/components/search/search-auto
   ssr: false,
   loading: () => <div className="h-10 bg-gray-100 rounded-md max-w-xs sm:max-w-md mx-auto" />,
 })
+
+const ItemFilters = dynamic(() => import("@/components/items/item-filters"))
+
 import {
   Pagination,
   PaginationContent,

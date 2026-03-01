@@ -37,18 +37,8 @@ export const revalidate = 30
 export default async function HomePage() {
   const initialItems = await getInitialItems()
 
-  // Preload the LCP image so browser starts fetching immediately
-  const lcpImageUrl = initialItems[0]?.images?.[0]
-
   return (
     <>
-      {lcpImageUrl && (
-        <link
-          rel="preload"
-          as="image"
-          href={`/_next/image?url=${encodeURIComponent(lcpImageUrl)}&w=640&q=75`}
-        />
-      )}
       <Suspense fallback={
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-center items-center h-64">
