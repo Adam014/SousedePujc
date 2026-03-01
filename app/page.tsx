@@ -247,7 +247,7 @@ export default function HomePage() {
 
     // Vždy zobrazit první stránku
     pages.push(
-      <PaginationItem key="page-1">
+      <PaginationItem key="page-1" className="hidden sm:list-item">
         <PaginationLink isActive={currentPage === 1} onClick={() => handlePageChange(1)}>
           1
         </PaginationLink>
@@ -257,7 +257,7 @@ export default function HomePage() {
     // Přidat elipsu, pokud je aktuální stránka > 3
     if (currentPage > 3) {
       pages.push(
-        <PaginationItem key="ellipsis-1">
+        <PaginationItem key="ellipsis-1" className="hidden sm:list-item">
           <span className="flex h-9 w-9 items-center justify-center">...</span>
         </PaginationItem>,
       )
@@ -268,7 +268,7 @@ export default function HomePage() {
       if (i === 1 || i === totalPages) continue // Přeskočit první a poslední stránku, ty jsou přidány zvlášť
 
       pages.push(
-        <PaginationItem key={`page-${i}`}>
+        <PaginationItem key={`page-${i}`} className="hidden sm:list-item">
           <PaginationLink isActive={currentPage === i} onClick={() => handlePageChange(i)}>
             {i}
           </PaginationLink>
@@ -279,7 +279,7 @@ export default function HomePage() {
     // Přidat elipsu, pokud je aktuální stránka < totalPages - 2
     if (currentPage < totalPages - 2) {
       pages.push(
-        <PaginationItem key="ellipsis-2">
+        <PaginationItem key="ellipsis-2" className="hidden sm:list-item">
           <span className="flex h-9 w-9 items-center justify-center">...</span>
         </PaginationItem>,
       )
@@ -288,7 +288,7 @@ export default function HomePage() {
     // Přidat poslední stránku, pokud existuje více než 1 stránka
     if (totalPages > 1) {
       pages.push(
-        <PaginationItem key={`page-${totalPages}`}>
+        <PaginationItem key={`page-${totalPages}`} className="hidden sm:list-item">
           <PaginationLink isActive={currentPage === totalPages} onClick={() => handlePageChange(totalPages)}>
             {totalPages}
           </PaginationLink>
@@ -440,9 +440,7 @@ export default function HomePage() {
                 </PaginationItem>
 
                 {/* Desktop: show page numbers */}
-                <div className="hidden sm:contents">
-                  {paginationItems}
-                </div>
+                {paginationItems}
 
                 <PaginationItem>
                   <PaginationNext

@@ -190,7 +190,7 @@ export default function ItemFilters({
       </Popover>
 
       <Select value={activeSort} onValueChange={handleSortChange}>
-        <SelectTrigger className="w-full sm:w-[200px]">
+        <SelectTrigger className="w-full sm:w-[200px]" aria-label="Seřadit předměty">
           <div className="flex items-center gap-2">
             <ArrowUpDown className="h-4 w-4" />
             <SelectValue placeholder="Seřadit podle" />

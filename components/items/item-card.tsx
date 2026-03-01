@@ -10,9 +10,10 @@ import RatingDisplay from "@/components/ui/rating-display"
 
 interface ItemCardProps {
   item: Item
+  priority?: boolean
 }
 
-export default function ItemCard({ item }: ItemCardProps) {
+export default function ItemCard({ item, priority = false }: ItemCardProps) {
   // Handle potential null/undefined values from Supabase
   const imageUrl = item.images && item.images.length > 0 ? item.images[0] : "/placeholder.svg"
 
@@ -26,8 +27,8 @@ export default function ItemCard({ item }: ItemCardProps) {
             fill
             className="object-cover transition-opacity duration-200"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            priority={false}
-            loading="eager"
+            priority={priority}
+            loading={priority ? undefined : "eager"}
             quality={75}
           />
           {!item.is_available && (
@@ -68,7 +69,7 @@ export default function ItemCard({ item }: ItemCardProps) {
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center space-x-2">
             <Avatar className="h-6 w-6">
-              <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} />
+              <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} alt={item.owner?.name || "Uživatel"} />
               <AvatarFallback className="text-xs">{item.owner?.name?.charAt(0) || "?"}</AvatarFallback>
             </Avatar>
             <span className="text-sm text-gray-600">{item.owner?.name || "Neznámý"}</span>

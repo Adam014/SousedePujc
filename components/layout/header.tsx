@@ -120,7 +120,7 @@ export default function Header() {
           <MobileMenu unreadMessages={unreadMessages} />
 
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group">
+          <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group" aria-label="SousedePůjč - domů">
             <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl shadow-soft group-hover:shadow-md transition-all duration-300">
               <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>

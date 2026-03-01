@@ -42,7 +42,7 @@ export default function CategoryFilter({ selectedCategory, onCategoryChange }: C
 
   return (
     <div className="mb-4 sm:mb-6">
-      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">Kategorie</h3>
+      <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">Kategorie</h2>
 
       {/* Mobile: Grid with expand/collapse */}
       <div className="sm:hidden">

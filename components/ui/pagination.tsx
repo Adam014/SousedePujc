@@ -58,7 +58,7 @@ const PaginationPrevious = ({
   ...props
 }: React.ComponentProps<typeof PaginationLink>) => (
   <PaginationLink
-    aria-label="Go to previous page"
+    aria-label="Přejít na předchozí stránku"
     size="default"
     className={cn("gap-1 px-2 sm:pl-2.5 min-h-[36px] sm:min-h-[40px]", className)}
     onClick={onClick}
@@ -73,7 +73,7 @@ PaginationPrevious.displayName = "PaginationPrevious"
 
 const PaginationNext = ({ className, onClick, disabled, ...props }: React.ComponentProps<typeof PaginationLink>) => (
   <PaginationLink
-    aria-label="Go to next page"
+    aria-label="Přejít na další stránku"
     size="default"
     className={cn("gap-1 px-2 sm:pr-2.5 min-h-[36px] sm:min-h-[40px]", className)}
     onClick={onClick}
@@ -89,7 +89,7 @@ PaginationNext.displayName = "PaginationNext"
 const PaginationEllipsis = ({ className, ...props }: React.ComponentProps<"span">) => (
   <span aria-hidden className={cn("flex h-9 w-9 items-center justify-center", className)} {...props}>
     <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More pages</span>
+    <span className="sr-only">Další stránky</span>
   </span>
 )
 PaginationEllipsis.displayName = "PaginationEllipsis"

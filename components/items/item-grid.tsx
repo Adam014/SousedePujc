@@ -18,8 +18,8 @@ const ItemGrid = memo(function ItemGrid({ items }: ItemGridProps) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 md:gap-6">
-      {items.map((item) => (
-        <ItemCard key={item.id} item={item} />
+      {items.map((item, index) => (
+        <ItemCard key={item.id} item={item} priority={index < 4} />
       ))}
     </div>
   )
