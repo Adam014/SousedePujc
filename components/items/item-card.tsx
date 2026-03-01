@@ -26,8 +26,8 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
             fill
             className="object-cover transition-opacity duration-200"
             sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw"
-            priority={priority}
-            loading={priority ? undefined : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
+            loading={priority ? "eager" : "lazy"}
             quality={75}
           />
           {!item.is_available && (

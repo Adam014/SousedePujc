@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { Suspense } from "react"
+import { preload } from "react-dom"
+import { getImageProps } from "next/image"
 import HomeClient from "./home-client"
 import type { Item } from "@/lib/types"
 
@@ -36,6 +38,23 @@ export const revalidate = 30
 
 export default async function HomePage() {
   const initialItems = await getInitialItems()
+
+  // Preload the LCP image before Suspense boundary so it's in the initial HTML stream
+  const lcpImageUrl = initialItems[0]?.images?.[0]
+  if (lcpImageUrl) {
+    const { props } = getImageProps({
+      src: lcpImageUrl,
+      fill: true,
+      sizes: "(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw",
+      quality: 75,
+    })
+    preload(props.src, {
+      as: "image",
+      imageSrcSet: props.srcSet,
+      imageSizes: props.sizes,
+      fetchPriority: "high",
+    })
+  }
 
   return (
     <>
