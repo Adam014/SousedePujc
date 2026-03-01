@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
-import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
@@ -56,18 +56,24 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
   })
   const [sortBy, setSortBy] = useState<SortValue>("newest")
 
-  const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
 
+  // Read search params directly from URL to avoid useSearchParams() which causes
+  // Suspense to show fallback during hydration, replacing SSR content (including LCP image)
+  const readSearchParams = useCallback(() => {
+    if (typeof window === "undefined") return new URLSearchParams()
+    return new URLSearchParams(window.location.search)
+  }, [])
 
   // Sync URL params to state on initial load
   useEffect(() => {
-    const categoryFromUrl = searchParams.get("category")
-    const searchFromUrl = searchParams.get("search")
-    const sortFromUrl = searchParams.get("sort") as SortValue
-    const availabilityFromUrl = searchParams.get("availability") as "all" | "available" | "unavailable"
-    const pageFromUrl = parseInt(searchParams.get("page") || "1")
+    const params = readSearchParams()
+    const categoryFromUrl = params.get("category")
+    const searchFromUrl = params.get("search")
+    const sortFromUrl = params.get("sort") as SortValue
+    const availabilityFromUrl = params.get("availability") as "all" | "available" | "unavailable"
+    const pageFromUrl = parseInt(params.get("page") || "1")
 
     if (categoryFromUrl) setSelectedCategory(categoryFromUrl)
     if (searchFromUrl) setSearchQuery(searchFromUrl)
@@ -82,7 +88,7 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
 
   // Update URL when filters change
   const updateUrl = useCallback((updates: Record<string, string | number | null>) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(window.location.search)
 
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === "" || value === "all" || value === "newest" || (key === "page" && value === 1)) {
@@ -94,7 +100,7 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
 
     const queryString = params.toString()
     router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
-  }, [router, pathname, searchParams])
+  }, [router, pathname])
 
   // Handlers that update both state and URL
   const handleCategoryChange = useCallback((category: string | null) => {
