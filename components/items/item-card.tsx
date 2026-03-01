@@ -24,9 +24,10 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
             src={imageUrl || "/placeholder.svg"}
             alt={item.title}
             fill
-            className="object-cover transition-opacity duration-200"
+            className={`object-cover${priority ? "" : " transition-opacity duration-200"}`}
             sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw"
             fetchPriority={priority ? "high" : "auto"}
+            decoding={priority ? "sync" : "async"}
             loading={priority ? "eager" : "lazy"}
             quality={75}
           />

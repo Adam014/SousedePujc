@@ -73,13 +73,6 @@ const nextConfig = {
       'fuse.js',
       '@supabase/supabase-js',
     ],
-    inlineCss: true,
-  },
-  turbopack: {
-    resolveAlias: {
-      '../build/polyfills/polyfill-module': './lib/modern-polyfill.js',
-      'next/dist/build/polyfills/polyfill-module': './lib/modern-polyfill.js',
-    },
   },
   // Komprese
   compress: true,
