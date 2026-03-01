@@ -22,6 +22,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import Image from "next/image"
 
 interface BookingCardProps {
   booking: Booking
@@ -159,10 +160,12 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
           {/* Horní část - Info o předmětu */}
           <div className="flex items-start sm:items-center gap-3 sm:gap-4">
             <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded overflow-hidden flex-shrink-0">
-              <img
+              <Image
                 src={booking.item?.images[0] || "/placeholder.svg?height=64&width=64"}
-                alt={booking.item?.title}
-                className="object-cover w-full h-full"
+                alt={booking.item?.title || ""}
+                fill
+                sizes="64px"
+                className="object-cover"
               />
             </div>
 

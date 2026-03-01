@@ -6,11 +6,7 @@ import Header from "@/components/layout/header"
 import { AuthProvider } from "@/lib/auth"
 import { ErrorBoundary } from "@/components/error/error-boundary"
 import { Suspense } from "react"
-import dynamic from "next/dynamic"
-
-const ChatPopup = dynamic(() => import("@/components/chat/chat-popup"), {
-  ssr: false,
-})
+import ChatPopup from "@/components/chat/chat-popup-lazy"
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], display: "swap" })
 

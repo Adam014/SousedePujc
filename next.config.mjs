@@ -40,9 +40,6 @@ const nextConfig = {
       },
     ]
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -76,7 +73,6 @@ const nextConfig = {
       'fuse.js',
       '@supabase/supabase-js',
     ],
-    optimizeCss: true,
   },
   // Komprese
   compress: true,
@@ -84,8 +80,6 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   // React strict mode
   reactStrictMode: true,
-  // SWC minifikace
-  swcMinify: true,
 }
 
 export default nextConfig

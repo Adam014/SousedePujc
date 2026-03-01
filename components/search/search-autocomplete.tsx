@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
 import { createItemSearch, searchItems, fuzzyMatchItems } from "@/lib/search"
@@ -111,10 +112,12 @@ export default function SearchAutocomplete({
               onClick={() => handleSuggestionClick(item)}
             >
               <div className="flex items-center space-x-3">
-                <img
+                <Image
                   src={item.images[0] || "/placeholder.svg?height=40&width=40"}
                   alt={item.title}
-                  className="w-10 h-10 object-cover rounded"
+                  width={40}
+                  height={40}
+                  className="object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
