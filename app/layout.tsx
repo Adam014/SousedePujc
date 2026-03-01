@@ -4,11 +4,15 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/layout/header"
 import { AuthProvider } from "@/lib/auth"
-import ChatPopup from "@/components/chat/chat-popup"
 import { ErrorBoundary } from "@/components/error/error-boundary"
 import { Suspense } from "react"
+import dynamic from "next/dynamic"
 
-const inter = Inter({ subsets: ["latin", "latin-ext"] })
+const ChatPopup = dynamic(() => import("@/components/chat/chat-popup"), {
+  ssr: false,
+})
+
+const inter = Inter({ subsets: ["latin", "latin-ext"], display: "swap" })
 
 export const metadata = {
   title: "SousedePůjč - Půjčování věcí mezi sousedy",

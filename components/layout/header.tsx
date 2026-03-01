@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -14,11 +15,17 @@ import {
 import { Plus, User, LogOut, Settings, Package, MessageSquare } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
-import NotificationDropdown from "@/components/notifications/notification-dropdown"
-import SearchAutocomplete from "@/components/search/search-autocomplete"
 import MobileMenu from "@/components/layout/mobile-menu"
 import { usePathname } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+
+const NotificationDropdown = dynamic(() => import("@/components/notifications/notification-dropdown"), {
+  ssr: false,
+})
+const SearchAutocomplete = dynamic(() => import("@/components/search/search-autocomplete"), {
+  ssr: false,
+  loading: () => <div className="w-full h-10 bg-gray-100 rounded-md animate-pulse" />,
+})
 
 export default function Header() {
   const { user, logout } = useAuth()

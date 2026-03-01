@@ -25,16 +25,17 @@ export default function SearchAutocomplete({
   const [suggestions, setSuggestions] = useState<Item[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [allItems, setAllItems] = useState<Item[]>([])
+  const [itemsLoaded, setItemsLoaded] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    const loadItems = async () => {
-      const items = await db.getItems()
-      setAllItems(items)
-    }
-    loadItems()
-  }, [])
+  const loadItemsOnce = useRef(async () => {
+    if (itemsLoaded) return
+    const items = await db.getItems()
+    setAllItems(items)
+    setItemsLoaded(true)
+  }).current
 
   // Create search index when items change
   const searchIndex = useMemo(() => createItemSearch(allItems), [allItems])
@@ -46,11 +47,16 @@ export default function SearchAutocomplete({
       return
     }
 
-    // Use fuzzy search
-    const results = fuzzyMatchItems(allItems, query).slice(0, 5)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      const results = fuzzyMatchItems(allItems, query).slice(0, 5)
+      setSuggestions(results)
+      setShowSuggestions(results.length > 0)
+    }, 150)
 
-    setSuggestions(results)
-    setShowSuggestions(results.length > 0)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [query, allItems])
 
   const handleSearch = (searchQuery: string) => {
@@ -88,7 +94,7 @@ export default function SearchAutocomplete({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
+          onFocus={() => { loadItemsOnce(); query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true) }}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           className="pl-10"

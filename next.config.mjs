@@ -68,9 +68,14 @@ const nextConfig = {
     // Disable optimalizaci pro Supabase obrázky (rychlejší načítání)
     unoptimized: false,
   },
-  transpilePackages: ['react-leaflet'],
   experimental: {
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-icons',
+      'date-fns',
+      'fuse.js',
+      '@supabase/supabase-js',
+    ],
   },
   // Komprese
   compress: true,

@@ -2,16 +2,19 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import dynamic from "next/dynamic"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
 import { fuzzyMatchItems } from "@/lib/search"
 import ItemGrid from "@/components/items/item-grid"
-import CategoryFilter from "@/components/categories/category-filter"
-import SearchAutocomplete from "@/components/search/search-autocomplete"
-import ItemFilters, { type FilterValues, type SortValue } from "@/components/items/item-filters"
+import { type FilterValues, type SortValue } from "@/components/items/item-filters"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ServerOffIcon as DatabaseOff, RefreshCcw } from "lucide-react"
+
+const CategoryFilter = dynamic(() => import("@/components/categories/category-filter"), { ssr: false })
+const SearchAutocomplete = dynamic(() => import("@/components/search/search-autocomplete"), { ssr: false })
+const ItemFilters = dynamic(() => import("@/components/items/item-filters"), { ssr: false })
 import {
   Pagination,
   PaginationContent,
