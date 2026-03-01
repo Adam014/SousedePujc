@@ -2,7 +2,6 @@ import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin } from "lucide-react"
 import type { Item } from "@/lib/types"
 import { CONDITION_LABELS_CZ, CONDITION_COLORS } from "@/lib/constants"
@@ -26,9 +25,9 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
             alt={item.title}
             fill
             className="object-cover transition-opacity duration-200"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw"
             priority={priority}
-            loading={priority ? undefined : "eager"}
+            loading={priority ? undefined : "lazy"}
             quality={75}
           />
           {!item.is_available && (
@@ -68,10 +67,16 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
       <CardFooter className="p-4 pt-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center space-x-2">
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={item.owner?.avatar_url || "/placeholder.svg"} alt={item.owner?.name || "Uživatel"} />
-              <AvatarFallback className="text-xs">{item.owner?.name?.charAt(0) || "?"}</AvatarFallback>
-            </Avatar>
+            <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
+              <Image
+                src={item.owner?.avatar_url || "/placeholder.svg"}
+                alt={item.owner?.name || "Uživatel"}
+                width={24}
+                height={24}
+                className="object-cover h-full w-full"
+                loading="lazy"
+              />
+            </div>
             <span className="text-sm text-gray-600">{item.owner?.name || "Neznámý"}</span>
           </div>
 
