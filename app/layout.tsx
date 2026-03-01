@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="cs" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://pqygnezxuosrvhkabjki.supabase.co" />
+        <link rel="preconnect" href="https://pqygnezxuosrvhkabjki.supabase.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://pqygnezxuosrvhkabjki.supabase.co" />
       </head>
       <body className={inter.className}>
