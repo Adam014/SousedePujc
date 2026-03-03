@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/lib/supabase"
 import { db } from "@/lib/database"
 import type { ChatMessage, TypingIndicator } from "@/lib/types"
@@ -18,31 +18,36 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
   const [loading, setLoading] = useState(true)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const isMountedRef = useRef(true)
+  const messagesRef = useRef<ChatMessage[]>([])
 
-  // Načtení zpráv
-  const loadMessages = useCallback(async () => {
-    if (!roomId) return
-
-    try {
-      setLoading(true)
-      const messagesData = await db.getChatMessagesByRoom(roomId)
-      if (isMountedRef.current) {
-        setMessages(messagesData)
-      }
-    } catch (error) {
-      console.error("Error loading messages:", error)
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [roomId])
+  // Keep ref in sync with state for use in realtime callbacks
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Inicializace realtime připojení
   useEffect(() => {
     if (!roomId || !currentUserId) return
 
     isMountedRef.current = true
+
+    // Load messages inline (no useCallback dep needed)
+    const loadMessages = async () => {
+      try {
+        setLoading(true)
+        const messagesData = await db.getChatMessagesByRoom(roomId)
+        if (isMountedRef.current) {
+          setMessages(messagesData)
+        }
+      } catch (error) {
+        console.error("Error loading messages:", error)
+      } finally {
+        if (isMountedRef.current) {
+          setLoading(false)
+        }
+      }
+    }
+
     loadMessages()
 
     // Vytvoření realtime kanálu
@@ -200,15 +205,8 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           const messageId = (payload.new as Record<string, string> | undefined)?.message_id || (payload.old as Record<string, string> | undefined)?.message_id
           if (!messageId) return
 
-          // Aktualizujeme pouze reakce pro zprávu, pokud patří do aktuální místnosti
-          // Use setMessages to access current state (avoids stale closure)
-          let messageFound = false
-          setMessages((prev) => {
-            messageFound = prev.some((msg) => msg.id === messageId)
-            return prev // no-op, just checking
-          })
-
-          if (!messageFound) return
+          // Check if the message belongs to the current room via ref
+          if (!messagesRef.current.some((msg) => msg.id === messageId)) return
 
           try {
             const { data: reactions, error } = await supabase
@@ -283,7 +281,7 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
         channelRef.current = null
       }
     }
-  }, [roomId, currentUserId, loadMessages])
+  }, [roomId, currentUserId])
 
   // Constants for message validation
   const MAX_MESSAGE_LENGTH = 5000

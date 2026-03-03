@@ -61,7 +61,7 @@ export default function EditProfilePage() {
     if (user.privacy_settings) {
       setPrivacySettings(user.privacy_settings)
     }
-  }, [user, router])
+  }, [user?.id, authLoading, router])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))

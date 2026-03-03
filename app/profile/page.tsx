@@ -97,14 +97,14 @@ export default function ProfilePage() {
     }
 
     loadUserData()
-  }, [user, authLoading, router])
+  }, [user?.id, authLoading, router])
 
   // V useEffect nastavíme avatar
   useEffect(() => {
     if (user) {
       setCurrentAvatarUrl(user.avatar_url || null)
     }
-  }, [user])
+  }, [user?.avatar_url])
 
   // Memoize booking counts (currently recalculated every render)
   const ownerBookingCounts = useMemo(() => ({

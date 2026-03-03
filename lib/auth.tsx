@@ -113,51 +113,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth()
 
     // Nastavíme listener pro změny autentizačního stavu
+    // IMPORTANT: Never await Supabase calls inside this callback — it causes
+    // deadlocks with the internal auth lock (auth-js Issue #762).
+    // Instead, defer async work with setTimeout.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       // Ignorujeme INITIAL_SESSION - to zpracovává initializeAuth
       if (event === "INITIAL_SESSION") return
 
       if (event === "SIGNED_IN" && session?.user) {
         // Skip if login() is already handling this
         if (isManualAuthRef.current || isLoadingUserRef.current) return
-        isLoadingUserRef.current = true
 
-        try {
-          const result = await loadUserData(
-            session.user.email || "",
-            !!session.user.email_confirmed_at
-          )
-          if (result.user && isMountedRef.current) {
-            setUser(result.user)
+        // Defer to avoid deadlocking the auth lock
+        const email = session.user.email || ""
+        const emailConfirmed = !!session.user.email_confirmed_at
+        setTimeout(async () => {
+          if (isLoadingUserRef.current) return
+          isLoadingUserRef.current = true
+          try {
+            const result = await loadUserData(email, emailConfirmed)
+            if (result.user && isMountedRef.current) {
+              setUser(result.user)
+            }
+          } catch (error) {
+            console.error("Error in auth state change:", error)
+          } finally {
+            isLoadingUserRef.current = false
           }
-        } catch (error) {
-          console.error("Error in auth state change:", error)
-        } finally {
-          isLoadingUserRef.current = false
-        }
+        }, 0)
       } else if (event === "SIGNED_OUT") {
         if (isMountedRef.current) {
           setUser(null)
         }
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        // Token byl obnoven, zkontrolujeme že máme správného uživatele
         if (!userRef.current && isMountedRef.current && !isLoadingUserRef.current) {
-          isLoadingUserRef.current = true
-          try {
-            const result = await loadUserData(
-              session.user.email || "",
-              !!session.user.email_confirmed_at
-            )
-            if (result.user && isMountedRef.current) {
-              setUser(result.user)
+          const email = session.user.email || ""
+          const emailConfirmed = !!session.user.email_confirmed_at
+          setTimeout(async () => {
+            if (isLoadingUserRef.current) return
+            isLoadingUserRef.current = true
+            try {
+              const result = await loadUserData(email, emailConfirmed)
+              if (result.user && isMountedRef.current) {
+                setUser(result.user)
+              }
+            } catch (error) {
+              console.error("Error refreshing user on token refresh:", error)
+            } finally {
+              isLoadingUserRef.current = false
             }
-          } catch (error) {
-            console.error("Error refreshing user on token refresh:", error)
-          } finally {
-            isLoadingUserRef.current = false
-          }
+          }, 0)
         }
       }
     })

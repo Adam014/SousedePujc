@@ -104,7 +104,7 @@ export default function ChatRoom({ roomId, isPopup = false, isInline = false, on
     }
 
     loadRoomData()
-  }, [roomId, user, router, isPopup, isInline])
+  }, [roomId, user?.id, router, isPopup, isInline])
 
   // Automatické scrollování na konec zpráv
   useEffect(() => {

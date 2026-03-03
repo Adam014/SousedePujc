@@ -69,11 +69,15 @@ export default function UserProfilePage() {
     loadUserData()
   }, [params.id])
 
-  // Kontrola, zda se jedná o vlastní profil
+  // Přesměrování na vlastní profil
   const isOwnProfile = currentUser && user && currentUser.id === user.id
+  useEffect(() => {
+    if (isOwnProfile && !authLoading) {
+      router.push("/profile")
+    }
+  }, [isOwnProfile, authLoading, router])
 
   if (isOwnProfile && !authLoading) {
-    router.push("/profile")
     return null
   }
 

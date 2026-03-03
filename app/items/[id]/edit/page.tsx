@@ -114,7 +114,7 @@ export default function EditItemPage() {
     if (user) {
       loadData()
     }
-  }, [user, authLoading, params.id, router])
+  }, [user?.id, authLoading, params.id, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
