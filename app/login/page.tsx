@@ -39,6 +39,7 @@ export default function LoginPage() {
         toast({
           title: "Přihlášení úspěšné",
           description: "Vítejte zpět na SousedePůjč!",
+          variant: "success",
         })
         router.push("/")
       } else if (result.needsVerification) {

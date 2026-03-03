@@ -40,6 +40,7 @@ export default function Header() {
     toast({
       title: "Odhlášení úspěšné",
       description: "Byli jste úspěšně odhlášeni.",
+      variant: "success",
     })
   }
 

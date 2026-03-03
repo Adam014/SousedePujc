@@ -45,6 +45,7 @@ export default function MobileMenu({ unreadMessages }: MobileMenuProps) {
     toast({
       title: "Odhlášení úspěšné",
       description: "Byli jste úspěšně odhlášeni.",
+      variant: "success",
     })
   }
 
