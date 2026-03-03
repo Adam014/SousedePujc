@@ -2,7 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapPin } from "lucide-react"
+import { MapPin, ArrowRight } from "lucide-react"
 import type { Item } from "@/lib/types"
 import { CONDITION_LABELS_CZ, CONDITION_COLORS } from "@/lib/constants"
 import RatingDisplay from "@/components/ui/rating-display"
@@ -17,8 +17,8 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
   const imageUrl = item.images && item.images.length > 0 ? item.images[0] : "/placeholder.svg"
 
   return (
-    <Card className="overflow-hidden hover:shadow-elegant transition-all duration-300 card-hover bg-white border-0 shadow-soft">
-      <Link href={`/items/${item.id}`} prefetch={true}>
+    <Link href={`/items/${item.id}`} prefetch={true} className="block group">
+      <Card className="overflow-hidden hover:shadow-elegant transition-all duration-300 card-hover bg-white border-0 shadow-soft h-full flex flex-col">
         <div className="relative aspect-video bg-gray-100">
           <Image
             src={imageUrl || "/placeholder.svg"}
@@ -39,53 +39,56 @@ export default function ItemCard({ item, priority = false }: ItemCardProps) {
             </div>
           )}
         </div>
-      </Link>
 
-      <CardContent className="p-4">
-        <Link href={`/items/${item.id}`} prefetch={true}>
-          <h3 className="font-semibold text-lg mb-2 hover:text-blue-600 transition-colors line-clamp-1">
+        <CardContent className="p-4 flex-1">
+          <h3 className="font-semibold text-lg mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
             {item.title}
           </h3>
-        </Link>
 
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description || ""}</p>
+          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description || ""}</p>
 
-        <div className="flex items-center justify-between mb-3">
-          <Badge className={CONDITION_COLORS[item.condition]}>{CONDITION_LABELS_CZ[item.condition]}</Badge>
-          <span className="font-bold text-lg bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-            {item.daily_rate === 0 ? "Zdarma" : `${item.daily_rate} Kč/den`}
-          </span>
-        </div>
-
-        {item.location && (
-          <div className="flex items-center text-gray-500 text-sm mb-3">
-            <MapPin className="h-4 w-4 mr-1" />
-            {item.location}
+          <div className="flex items-center justify-between mb-3">
+            <Badge className={CONDITION_COLORS[item.condition]}>{CONDITION_LABELS_CZ[item.condition]}</Badge>
+            <span className="font-bold text-lg bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+              {item.daily_rate === 0 ? "Zdarma" : `${item.daily_rate} Kč/den`}
+            </span>
           </div>
-        )}
-      </CardContent>
 
-      <CardFooter className="p-4 pt-0">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center space-x-2">
-            <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
-              <Image
-                src={item.owner?.avatar_url || "/placeholder.svg"}
-                alt={item.owner?.name || "Uživatel"}
-                width={24}
-                height={24}
-                className="object-cover h-full w-full"
-                loading="lazy"
-              />
+          {item.location && (
+            <div className="flex items-center text-gray-500 text-sm">
+              <MapPin className="h-4 w-4 mr-1" />
+              {item.location}
             </div>
-            <span className="text-sm text-gray-600">{item.owner?.name || "Neznámý"}</span>
+          )}
+        </CardContent>
+
+        <CardFooter className="p-4 pt-0 flex flex-col gap-3">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center space-x-2">
+              <div className="relative h-6 w-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                <Image
+                  src={item.owner?.avatar_url || "/placeholder.svg"}
+                  alt={item.owner?.name || "Uživatel"}
+                  width={24}
+                  height={24}
+                  className="object-cover h-full w-full"
+                  loading="lazy"
+                />
+              </div>
+              <span className="text-sm text-gray-600">{item.owner?.name || "Neznámý"}</span>
+            </div>
+
+            {item.owner && (
+              <RatingDisplay rating={item.owner.reputation_score || 0} reviewCount={0} showText={false} size="sm" />
+            )}
           </div>
 
-          {item.owner && (
-            <RatingDisplay rating={item.owner.reputation_score || 0} reviewCount={0} showText={false} size="sm" />
-          )}
-        </div>
-      </CardFooter>
-    </Card>
+          <div className="w-full bg-blue-600 group-hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-md text-center transition-colors flex items-center justify-center gap-2">
+            Zobrazit detail
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </div>
+        </CardFooter>
+      </Card>
+    </Link>
   )
 }
