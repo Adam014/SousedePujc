@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { User as UserType } from "@/lib/types"
 
 export default function EditProfilePage() {
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -41,6 +41,7 @@ export default function EditProfilePage() {
   })
 
   useEffect(() => {
+    if (authLoading) return
     if (!user) {
       router.push("/login")
       return
