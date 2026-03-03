@@ -14,6 +14,8 @@ export const db = {
   getUsers: users.getUsers,
   getUserById: users.getUserById,
   getUserByEmail: users.getUserByEmail,
+  getMyProfile: users.getMyProfile,
+  checkUserExists: users.checkUserExists,
   createUser: users.createUser,
   updateUser: users.updateUser,
   updateUserLastSeen: users.updateUserLastSeen,

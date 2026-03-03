@@ -42,10 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true
 
-    const loadUserData = async (email: string, emailConfirmed: boolean, retries = 1): Promise<{ user: User | null; error: boolean }> => {
+    const loadUserData = async (emailConfirmed: boolean, retries = 1): Promise<{ user: User | null; error: boolean }> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          const userData = await db.getUserByEmail(email)
+          // Use secure RPC - returns full profile only for the authenticated user
+          const userData = await db.getMyProfile()
           if (userData) {
             // Aktualizujeme stav ověření na základě Supabase
             if (emailConfirmed && !userData.is_verified) {
@@ -85,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user && isMountedRef.current) {
           const result = await loadUserData(
-            session.user.email || "",
             !!session.user.email_confirmed_at
           )
 
@@ -127,13 +127,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isManualAuthRef.current || isLoadingUserRef.current) return
 
         // Defer to avoid deadlocking the auth lock
-        const email = session.user.email || ""
         const emailConfirmed = !!session.user.email_confirmed_at
         setTimeout(async () => {
           if (isLoadingUserRef.current) return
           isLoadingUserRef.current = true
           try {
-            const result = await loadUserData(email, emailConfirmed)
+            const result = await loadUserData(emailConfirmed)
             if (result.user && isMountedRef.current) {
               setUser(result.user)
             }
@@ -149,13 +148,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
         if (!userRef.current && isMountedRef.current && !isLoadingUserRef.current) {
-          const email = session.user.email || ""
           const emailConfirmed = !!session.user.email_confirmed_at
           setTimeout(async () => {
             if (isLoadingUserRef.current) return
             isLoadingUserRef.current = true
             try {
-              const result = await loadUserData(email, emailConfirmed)
+              const result = await loadUserData(emailConfirmed)
               if (result.user && isMountedRef.current) {
                 setUser(result.user)
               }
@@ -200,8 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, needsVerification: true }
       }
 
-      // Získáme uživatelská data z naší databáze
-      const userData = await db.getUserByEmail(email)
+      // Získáme uživatelská data přes bezpečné RPC
+      const userData = await db.getMyProfile()
       if (userData) {
         // Aktualizujeme stav ověření
         if (data.user?.email_confirmed_at && !userData.is_verified) {
@@ -235,8 +233,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {
     try {
       // Zkontrolujeme, zda uživatel již existuje v naší databázi
-      const existingUser = await db.getUserByEmail(userData.email)
-      if (existingUser) {
+      const exists = await db.checkUserExists(userData.email)
+      if (exists) {
         return false
       }
 
@@ -308,7 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return
 
     try {
-      const userData = await db.getUserById(user.id)
+      const userData = await db.getMyProfile()
       if (userData) {
         setUser(userData)
       }

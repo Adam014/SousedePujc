@@ -1,19 +1,22 @@
 import { supabase } from "../supabase"
 import type { User } from "../types"
 
+// Public-safe columns only - never expose email, phone, address, is_admin in general queries
+const USER_PUBLIC_COLUMNS = "id, name, avatar_url, is_verified, reputation_score, bio, created_at, last_active, last_seen, updated_at"
+
 export async function getUsers(): Promise<User[]> {
-  const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
+  const { data, error } = await supabase.from("users").select(USER_PUBLIC_COLUMNS).order("created_at", { ascending: false })
 
   if (error) {
     console.error("Error fetching users:", error)
     throw error
   }
 
-  return data || []
+  return (data as unknown as User[]) || []
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  const { data, error } = await supabase.from("users").select("*").eq("id", id).single()
+  const { data, error } = await supabase.from("users").select(USER_PUBLIC_COLUMNS).eq("id", id).single()
 
   if (error) {
     if (error.code === "PGRST116") return null
@@ -21,7 +24,32 @@ export async function getUserById(id: string): Promise<User | null> {
     throw error
   }
 
+  return data as unknown as User | null
+}
+
+// Returns the FULL profile of the currently authenticated user via secure RPC
+export async function getMyProfile(): Promise<User | null> {
+  const { data, error } = await supabase.rpc("get_my_profile")
+
+  if (error) {
+    if (error.code === "PGRST116") return null
+    console.error("Error fetching my profile:", error)
+    throw error
+  }
+
   return data
+}
+
+// Check if an email is already registered (safe for registration flow)
+export async function checkUserExists(email: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("check_user_exists", { user_email: email })
+
+  if (error) {
+    console.error("Error checking user exists:", error)
+    return false
+  }
+
+  return data === true
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
