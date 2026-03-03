@@ -33,6 +33,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
           description: "Prosím nahrajte obrázek (JPG, PNG, GIF).",
           variant: "destructive",
         })
+        setUploading(false)
         return
       }
 
@@ -43,6 +44,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
           description: "Maximální velikost souboru je 2MB.",
           variant: "destructive",
         })
+        setUploading(false)
         return
       }
 
@@ -63,6 +65,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
           description: "Nepodařilo se nahrát profilovou fotku. Zkuste to prosím znovu.",
           variant: "destructive",
         })
+        setUploading(false)
         return
       }
 
@@ -98,7 +101,10 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
       setUploading(true)
 
       // Pokud nemá avatar, není co odstraňovat
-      if (!avatarUrl) return
+      if (!avatarUrl) {
+        setUploading(false)
+        return
+      }
 
       // Extrahování názvu souboru z URL
       const fileName = avatarUrl.split("/").pop()

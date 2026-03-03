@@ -28,33 +28,41 @@ export default function ChatList({ rooms, loading, selectedRoomId, onSelectRoom 
     if (!user || rooms.length === 0) return
 
     let isMounted = true
+    let loadInProgress = false
 
     const loadUnreadCounts = async () => {
-      const counts: Record<string, number> = {}
+      if (loadInProgress) return
+      loadInProgress = true
 
-      for (const room of rooms) {
-        try {
-          const { count, error } = await supabase
-            .from("chat_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("room_id", room.id)
-            .neq("sender_id", user.id)
-            .eq("is_read", false)
+      try {
+        const counts: Record<string, number> = {}
 
-          if (error) {
+        for (const room of rooms) {
+          try {
+            const { count, error } = await supabase
+              .from("chat_messages")
+              .select("id", { count: "exact", head: true })
+              .eq("room_id", room.id)
+              .neq("sender_id", user.id)
+              .eq("is_read", false)
+
+            if (error) {
+              console.error(`Error counting unread messages for room ${room.id}:`, error)
+              counts[room.id] = 0
+            } else {
+              counts[room.id] = count ?? 0
+            }
+          } catch (error) {
             console.error(`Error counting unread messages for room ${room.id}:`, error)
             counts[room.id] = 0
-          } else {
-            counts[room.id] = count ?? 0
           }
-        } catch (error) {
-          console.error(`Error counting unread messages for room ${room.id}:`, error)
-          counts[room.id] = 0
         }
-      }
 
-      if (isMounted) {
-        setUnreadCounts(counts)
+        if (isMounted) {
+          setUnreadCounts(counts)
+        }
+      } finally {
+        loadInProgress = false
       }
     }
 

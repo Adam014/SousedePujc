@@ -3,7 +3,9 @@ import dns from 'dns'
 
 function checkMxRecords(domain: string): Promise<boolean> {
   return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(true), 5000) // Assume valid on timeout
     dns.resolveMx(domain, (err, addresses) => {
+      clearTimeout(timeout)
       if (err || !addresses || addresses.length === 0) {
         resolve(false)
       } else {

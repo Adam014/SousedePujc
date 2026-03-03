@@ -301,13 +301,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendVerification = async (email: string): Promise<boolean> => {
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
+      const { error } = await withTimeout(
+        supabase.auth.resend({
+          type: "signup",
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        }),
+        TIMEOUTS.AUTH,
+        "Resend verification"
+      )
 
       if (error) {
         console.error("Resend verification error:", error.message)
