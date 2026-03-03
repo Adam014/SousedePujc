@@ -15,6 +15,7 @@ import {
 import { Plus, User, LogOut, Settings, Package, MessageSquare } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
+import { toast } from "@/components/ui/use-toast"
 import MobileMenu from "@/components/layout/mobile-menu"
 import { usePathname, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -36,6 +37,10 @@ export default function Header() {
   const handleLogout = async () => {
     await logout()
     router.push("/")
+    toast({
+      title: "Odhlášení úspěšné",
+      description: "Byli jste úspěšně odhlášeni.",
+    })
   }
 
   // Kontrola, zda jsme v chat místnosti

@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth"
 import { Package, Mail, Eye, EyeOff, Lock, User } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 
 export default function LoginPage() {
@@ -35,6 +36,10 @@ export default function LoginPage() {
     try {
       const result = await login(email, password, rememberMe)
       if (result.success) {
+        toast({
+          title: "Přihlášení úspěšné",
+          description: "Vítejte zpět na SousedePůjč!",
+        })
         router.push("/")
       } else if (result.needsVerification) {
         setNeedsVerification(true)

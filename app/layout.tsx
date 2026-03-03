@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth"
 import { ErrorBoundary } from "@/components/error/error-boundary"
 import { Suspense } from "react"
 import ChatPopup from "@/components/chat/chat-popup-lazy"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin", "latin-ext"], display: "optional" })
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <main className="flex-1">{children}</main>
                 </Suspense>
                 <ChatPopup />
+                <Toaster />
               </div>
             </AuthProvider>
           </ThemeProvider>

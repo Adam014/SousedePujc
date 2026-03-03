@@ -25,6 +25,7 @@ import {
   Bell
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { toast } from "@/components/ui/use-toast"
 import SearchAutocomplete from "@/components/search/search-autocomplete"
 
 interface MobileMenuProps {
@@ -41,6 +42,10 @@ export default function MobileMenu({ unreadMessages }: MobileMenuProps) {
     setOpen(false)
     await logout()
     router.push("/")
+    toast({
+      title: "Odhlášení úspěšné",
+      description: "Byli jste úspěšně odhlášeni.",
+    })
   }
 
   const handleLinkClick = () => {
