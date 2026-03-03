@@ -79,11 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoadingUserRef.current = true
 
       try {
-        // Zkontrolujeme, zda je uživatel přihlášen v Supabase
-        // No withTimeout here — the Supabase client already has a fetch-level
-        // timeout (TIMEOUTS.QUERY = 15s). Adding a shorter timeout causes
-        // premature failures on cold starts, leaving user=null while the real
-        // response arrives later via onAuthStateChange, causing race conditions.
         const {
           data: { session },
         } = await supabase.auth.getSession()

@@ -151,7 +151,7 @@ export default function EditItemPage() {
         deposit_amount: Number.parseFloat(formData.deposit_amount) || 0,
         is_available: formData.is_available,
         location: formData.location.trim(),
-        images: images.length > 0 ? images : ["/placeholder.svg?height=300&width=400"],
+        images: images.length > 0 ? images : ["/placeholder.svg"],
       }
 
       await db.updateItem(item.id, itemData)

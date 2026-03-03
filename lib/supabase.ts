@@ -1,22 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
 
-// Timeout utility to prevent infinite hangs on Supabase operations
-export function withTimeout<T>(promise: Promise<T>, ms: number, label = "Operation"): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    ),
-  ])
-}
-
-// Default timeouts
-export const TIMEOUTS = {
-  AUTH: 10000,      // 10s for auth operations
-  QUERY: 15000,     // 15s for database queries
-  MUTATION: 20000,  // 20s for inserts/updates
-} as const
-
 // Generujeme unikátní ID pro každou instanci prohlížeče
 // Using crypto.getRandomValues() for cryptographically secure random ID
 const generateBrowserId = () => {
@@ -38,23 +21,10 @@ const BROWSER_ID = typeof window !== "undefined" ? generateBrowserId() : ""
 // Klíč pro ukládání session do localStorage
 const getSessionStorageKey = () => `supabase_auth_token_${BROWSER_ID}`
 
-// Custom fetch with timeout to prevent infinite hangs on Supabase REST API calls
-const fetchWithTimeout = (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), TIMEOUTS.QUERY)
-
-  // If the caller already has a signal, listen for its abort too
-  if (options?.signal) {
-    options.signal.addEventListener("abort", () => controller.abort())
-  }
-
-  return fetch(url, {
-    ...options,
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timeout))
-}
-
-// Vytvoření Supabase klienta s vlastním storage key
+// Supabase client — uses the default fetch (no custom timeout wrapper).
+// Timeouts are handled per-query via .abortSignal(AbortSignal.timeout(ms))
+// where needed, not globally. A global fetch wrapper was causing race
+// conditions between competing timeouts on auth and query operations.
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
@@ -63,9 +33,6 @@ export const supabase = createClient(
       storageKey: getSessionStorageKey(),
       persistSession: true,
       autoRefreshToken: true,
-    },
-    global: {
-      fetch: fetchWithTimeout,
     },
   },
 )

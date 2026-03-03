@@ -161,7 +161,7 @@ export default function BookingCard({ booking, isOwner }: BookingCardProps) {
           <div className="flex items-start sm:items-center gap-3 sm:gap-4">
             <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded overflow-hidden flex-shrink-0">
               <Image
-                src={booking.item?.images[0] || "/placeholder.svg?height=64&width=64"}
+                src={booking.item?.images[0] || "/placeholder.svg"}
                 alt={booking.item?.title || ""}
                 fill
                 sizes="64px"

@@ -78,7 +78,7 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
   if (images.length === 0) {
     return (
       <div className="relative aspect-video rounded-lg overflow-hidden mb-4">
-        <Image src="/placeholder.svg?height=400&width=600" alt={alt} fill className="object-cover" />
+        <Image src="/placeholder.svg" alt={alt} fill className="object-cover" />
       </div>
     )
   }

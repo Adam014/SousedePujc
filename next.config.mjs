@@ -49,6 +49,9 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'inline',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    localPatterns: [
+      { pathname: '/**' },
+    ],
     remotePatterns: [
       {
         protocol: 'https',

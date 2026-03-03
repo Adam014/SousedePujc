@@ -142,7 +142,7 @@ export default function SearchAutocomplete({
               <div className="flex items-center space-x-3 sm:space-x-4">
                 <div className="relative h-12 w-12 sm:h-14 sm:w-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                   <Image
-                    src={item.images[0] || "/placeholder.svg?height=56&width=56"}
+                    src={item.images[0] || "/placeholder.svg"}
                     alt={item.title}
                     fill
                     sizes="56px"
