@@ -80,7 +80,10 @@ export default function ChatRoom({ roomId, isPopup = false, isInline = false, on
   // Načtení dat místnosti
   useEffect(() => {
     const loadRoomData = async () => {
-      if (!user) return
+      if (!user) {
+        setRoomLoading(false)
+        return
+      }
 
       try {
         setRoomLoading(true)

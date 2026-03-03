@@ -56,7 +56,7 @@ export default function MessagesPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, authLoading])
+  }, [user?.id, authLoading])
 
   const handleSelectRoom = (roomId: string) => {
     setSelectedRoomId(roomId)

@@ -27,7 +27,10 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
 
   // Inicializace realtime připojení
   useEffect(() => {
-    if (!roomId || !currentUserId) return
+    if (!roomId || !currentUserId) {
+      setLoading(false)
+      return
+    }
 
     isMountedRef.current = true
 
