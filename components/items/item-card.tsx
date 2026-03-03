@@ -1,8 +1,11 @@
+"use client"
+
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, ArrowRight } from "lucide-react"
+import { MapPin, ArrowRight, ImageOff } from "lucide-react"
 import type { Item } from "@/lib/types"
 import { CONDITION_LABELS_CZ, CONDITION_COLORS } from "@/lib/constants"
 import RatingDisplay from "@/components/ui/rating-display"
@@ -12,25 +15,39 @@ interface ItemCardProps {
   priority?: boolean
 }
 
+function ImagePlaceholder() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200">
+      <ImageOff className="h-10 w-10 text-gray-300 mb-2" />
+      <span className="text-xs text-gray-400">Bez fotky</span>
+    </div>
+  )
+}
+
 export default function ItemCard({ item, priority = false }: ItemCardProps) {
-  // Handle potential null/undefined values from Supabase
-  const imageUrl = item.images && item.images.length > 0 ? item.images[0] : "/placeholder.svg"
+  const [imgError, setImgError] = useState(false)
+  const hasImage = !imgError && item.images && item.images.length > 0 && item.images[0] !== "/placeholder.svg"
 
   return (
     <Link href={`/items/${item.id}`} prefetch={true} className="block group">
       <Card className="overflow-hidden hover:shadow-elegant transition-all duration-300 card-hover bg-white border-0 shadow-soft h-full flex flex-col">
         <div className="relative aspect-video bg-gray-100">
-          <Image
-            src={imageUrl || "/placeholder.svg"}
-            alt={item.title}
-            fill
-            className={`object-cover${priority ? "" : " transition-opacity duration-200"}`}
-            sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw"
-            fetchPriority={priority ? "high" : "auto"}
-            decoding={priority ? "sync" : "async"}
-            loading={priority ? "eager" : "lazy"}
-            quality={75}
-          />
+          {hasImage ? (
+            <Image
+              src={item.images[0]}
+              alt={item.title}
+              fill
+              className={`object-cover${priority ? "" : " transition-opacity duration-200"}`}
+              sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw"
+              fetchPriority={priority ? "high" : "auto"}
+              decoding={priority ? "sync" : "async"}
+              loading={priority ? "eager" : "lazy"}
+              quality={75}
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <ImagePlaceholder />
+          )}
           {!item.is_available && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
               <Badge variant="secondary" className="text-white bg-red-600">

@@ -6,7 +6,16 @@ import { useState, useRef, useCallback } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, X, ImageOff } from "lucide-react"
+
+function ImagePlaceholder({ className = "" }: { className?: string }) {
+  return (
+    <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-gray-200 ${className}`}>
+      <ImageOff className="h-12 w-12 text-gray-300 mb-2" />
+      <span className="text-sm text-gray-400">Bez fotky</span>
+    </div>
+  )
+}
 
 interface ImageGalleryProps {
   images: string[]
@@ -16,6 +25,11 @@ interface ImageGalleryProps {
 export default function ImageGallery({ images, alt }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set())
+
+  const handleImageError = useCallback((index: number) => {
+    setFailedImages((prev) => new Set(prev).add(index))
+  }, [])
 
   const handlePrevious = () => {
     setCurrentIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1))
@@ -78,7 +92,7 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
   if (images.length === 0) {
     return (
       <div className="relative aspect-video rounded-lg overflow-hidden mb-4">
-        <Image src="/placeholder.svg" alt={alt} fill className="object-cover" />
+        <ImagePlaceholder />
       </div>
     )
   }
@@ -87,17 +101,22 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
     <div className="space-y-4" onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Hlavní obrázek */}
       <div
-        className="relative aspect-video rounded-lg overflow-hidden mb-4 cursor-pointer touch-pan-y"
-        onClick={handleOpenGallery}
+        className={`relative aspect-video rounded-lg overflow-hidden mb-4 touch-pan-y${!failedImages.has(currentIndex) ? " cursor-pointer" : ""}`}
+        onClick={!failedImages.has(currentIndex) ? handleOpenGallery : undefined}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <Image
-          src={images[currentIndex] || "/placeholder.svg"}
-          alt={`${alt} - obrázek ${currentIndex + 1}`}
-          fill
-          className="object-cover pointer-events-none"
-        />
+        {failedImages.has(currentIndex) ? (
+          <ImagePlaceholder />
+        ) : (
+          <Image
+            src={images[currentIndex]}
+            alt={`${alt} - obrázek ${currentIndex + 1}`}
+            fill
+            className="object-cover pointer-events-none"
+            onError={() => handleImageError(currentIndex)}
+          />
+        )}
 
         {images.length > 1 && (
           <>
@@ -147,12 +166,17 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
               }`}
               onClick={() => handleThumbnailClick(index)}
             >
-              <Image
-                src={image || "/placeholder.svg"}
-                alt={`${alt} - miniatura ${index + 1}`}
-                fill
-                className="object-cover"
-              />
+              {failedImages.has(index) ? (
+                <ImagePlaceholder />
+              ) : (
+                <Image
+                  src={image}
+                  alt={`${alt} - miniatura ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  onError={() => handleImageError(index)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -166,12 +190,17 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <Image
-              src={images[currentIndex] || "/placeholder.svg"}
-              alt={`${alt} - obrázek ${currentIndex + 1}`}
-              fill
-              className="object-contain"
-            />
+            {failedImages.has(currentIndex) ? (
+              <ImagePlaceholder />
+            ) : (
+              <Image
+                src={images[currentIndex]}
+                alt={`${alt} - obrázek ${currentIndex + 1}`}
+                fill
+                className="object-contain"
+                onError={() => handleImageError(currentIndex)}
+              />
+            )}
 
             <Button
               className="absolute right-3 top-3 z-10 h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 border-none text-white shadow-lg transition-all"
