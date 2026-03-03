@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth"
-import { Package, Mail, CheckCircle, Eye, EyeOff, Lock, User } from "lucide-react"
+import { Package, Mail, CheckCircle, Eye, EyeOff, Lock, User, Loader2 } from "lucide-react"
 import PasswordStrength from "@/components/auth/password-strength"
+import MailChecker from "mailchecker"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -52,9 +53,29 @@ export default function RegisterPage() {
       return
     }
 
+    // Kontrola dočasného/disposable e-mailu
+    if (!MailChecker.isValid(formData.email)) {
+      setError("Dočasné e-mailové adresy nejsou povoleny. Použijte prosím svůj skutečný e-mail.")
+      return
+    }
+
     setLoading(true)
 
     try {
+      // Ověření MX záznamů e-mailové domény
+      const mxCheck = await fetch("/api/validate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      })
+      const mxResult = await mxCheck.json()
+
+      if (!mxResult.valid) {
+        setError("Zadaná e-mailová adresa neexistuje nebo nemůže přijímat zprávy. Zkontrolujte prosím správnost e-mailu.")
+        setLoading(false)
+        return
+      }
+
       const success = await register({
         name: formData.name,
         email: formData.email,
@@ -272,7 +293,12 @@ export default function RegisterPage() {
 
           <CardFooter className="flex flex-col space-y-4 pt-2">
             <Button type="submit" className="w-full py-5 text-base font-medium" disabled={loading}>
-              {loading ? "Registrování..." : "Registrovat se"}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Ověřování e-mailu...
+                </>
+              ) : "Registrovat se"}
             </Button>
 
             <div className="text-center">
