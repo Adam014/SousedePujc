@@ -45,11 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const loadUserData = async (email: string, emailConfirmed: boolean, retries = 2): Promise<{ user: User | null; error: boolean }> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          const userData = await withTimeout(
-            db.getUserByEmail(email),
-            TIMEOUTS.AUTH,
-            "loadUserData"
-          )
+          // No outer withTimeout — the Supabase client already has a fetch-level
+          // timeout (TIMEOUTS.QUERY = 15s). Wrapping with a shorter AUTH timeout (10s)
+          // causes premature failures on cold starts / slow initial connections.
+          const userData = await db.getUserByEmail(email)
           if (userData) {
             // Aktualizujeme stav ověření na základě Supabase
             if (emailConfirmed && !userData.is_verified) {
