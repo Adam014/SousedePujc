@@ -1,6 +1,4 @@
-// Jednoduchý content filter pro filtrování nevhodného obsahu
 export interface ContentFilterResult {
-  originalText: string
   filteredText: string
   wasFiltered: boolean
   filteredWords: string[]
@@ -16,39 +14,38 @@ const INAPPROPRIATE_WORDS = [
   'nazi', 'hitler', 'smrt', 'zabít', 'vražda'
 ]
 
+// Match word boundaries accounting for Czech diacritics and punctuation.
+// A word boundary here = start/end of string, whitespace, or common punctuation.
+const BOUNDARY_BEFORE = `(?<=[\\s,.!?;:()\\[\\]{}"'\\-]|^)`
+const BOUNDARY_AFTER = `(?=[\\s,.!?;:()\\[\\]{}"'\\-]|$)`
+
 export function filterInappropriateContent(text: string): ContentFilterResult {
   let filteredText = text
   const filteredWords: string[] = []
 
-  // Procházíme všechna nevhodná slova
-  // Using lookarounds instead of \b because JS \b doesn't work with Czech diacritics
-  INAPPROPRIATE_WORDS.forEach(word => {
-    const regex = new RegExp(`(?<=\\s|^)${word}(?=\\s|$)`, 'gi')
+  for (const word of INAPPROPRIATE_WORDS) {
+    const regex = new RegExp(`${BOUNDARY_BEFORE}${word}${BOUNDARY_AFTER}`, 'gi')
     const replaced = filteredText.replace(regex, '*'.repeat(word.length))
     if (replaced !== filteredText) {
       filteredWords.push(word)
       filteredText = replaced
     }
-  })
+  }
 
   return {
-    originalText: text,
     filteredText,
     wasFiltered: filteredWords.length > 0,
     filteredWords
   }
 }
 
-export async function logInappropriateContent(
+export function logFilteredContent(
   userId: string,
-  originalText: string,
-  filteredText: string,
   filteredWords: string[],
   contextType: string,
   contextId?: string
-): Promise<void> {
+): void {
   try {
-    // V reálné aplikaci bychom zde logovali do databáze
     console.warn('Inappropriate content detected:', {
       userId,
       filteredWords,

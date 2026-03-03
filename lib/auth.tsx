@@ -12,7 +12,6 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    rememberMe?: boolean,
   ) => Promise<{ success: boolean; needsVerification?: boolean }>
   logout: () => Promise<void>
   register: (userData: { email: string; name: string; password: string }) => Promise<boolean>
@@ -32,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLoadingUserRef = useRef(false)
   const isInitializedRef = useRef(false)
   const userRef = useRef<User | null>(null)
+  // Flag to skip SIGNED_IN handler when login() is already handling it
+  const isManualAuthRef = useRef(false)
 
   // Keep userRef in sync with user state
   useEffect(() => {
@@ -41,24 +42,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true
 
-    const loadUserData = async (email: string, emailConfirmed: boolean): Promise<{ user: User | null; error: boolean }> => {
-      try {
-        const userData = await db.getUserByEmail(email)
-        if (userData) {
-          // Aktualizujeme stav ověření na základě Supabase
-          if (emailConfirmed && !userData.is_verified) {
-            await db.updateUser(userData.id, { is_verified: true })
-            userData.is_verified = true
+    const loadUserData = async (email: string, emailConfirmed: boolean, retries = 2): Promise<{ user: User | null; error: boolean }> => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const userData = await withTimeout(
+            db.getUserByEmail(email),
+            TIMEOUTS.AUTH,
+            "loadUserData"
+          )
+          if (userData) {
+            // Aktualizujeme stav ověření na základě Supabase
+            if (emailConfirmed && !userData.is_verified) {
+              try {
+                await db.updateUser(userData.id, { is_verified: true })
+                userData.is_verified = true
+              } catch {
+                // Non-critical — don't fail the whole auth flow
+              }
+            }
+            return { user: userData, error: false }
           }
-          return { user: userData, error: false }
+          // User not found in database (but no error)
+          return { user: null, error: false }
+        } catch (error) {
+          if (attempt < retries) {
+            console.warn(`loadUserData attempt ${attempt + 1} failed, retrying...`)
+            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+            continue
+          }
+          console.error("Error loading user data after retries:", error)
+          // Return error flag so we don't sign out on network errors
+          return { user: null, error: true }
         }
-        // User not found in database (but no error)
-        return { user: null, error: false }
-      } catch (error) {
-        console.error("Error loading user data:", error)
-        // Return error flag so we don't sign out on network errors
-        return { user: null, error: true }
       }
+      return { user: null, error: true }
     }
 
     const initializeAuth = async () => {
@@ -76,13 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         )
 
         if (session?.user && isMountedRef.current) {
-          const result = await withTimeout(
-            loadUserData(
-              session.user.email || "",
-              !!session.user.email_confirmed_at
-            ),
-            TIMEOUTS.AUTH,
-            "Auth loadUserData"
+          const result = await loadUserData(
+            session.user.email || "",
+            !!session.user.email_confirmed_at
           )
 
           if (result.user && isMountedRef.current) {
@@ -116,18 +129,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === "INITIAL_SESSION") return
 
       if (event === "SIGNED_IN" && session?.user) {
-        // Prevent duplicate loading
-        if (isLoadingUserRef.current) return
+        // Skip if login() is already handling this
+        if (isManualAuthRef.current || isLoadingUserRef.current) return
         isLoadingUserRef.current = true
 
         try {
-          const result = await withTimeout(
-            loadUserData(
-              session.user.email || "",
-              !!session.user.email_confirmed_at
-            ),
-            TIMEOUTS.AUTH,
-            "Auth SIGNED_IN loadUserData"
+          const result = await loadUserData(
+            session.user.email || "",
+            !!session.user.email_confirmed_at
           )
           if (result.user && isMountedRef.current) {
             setUser(result.user)
@@ -146,13 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!userRef.current && isMountedRef.current && !isLoadingUserRef.current) {
           isLoadingUserRef.current = true
           try {
-            const result = await withTimeout(
-              loadUserData(
-                session.user.email || "",
-                !!session.user.email_confirmed_at
-              ),
-              TIMEOUTS.AUTH,
-              "Auth TOKEN_REFRESHED loadUserData"
+            const result = await loadUserData(
+              session.user.email || "",
+              !!session.user.email_confirmed_at
             )
             if (result.user && isMountedRef.current) {
               setUser(result.user)
@@ -176,8 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (
     email: string,
     password: string,
-    rememberMe = false,
   ): Promise<{ success: boolean; needsVerification?: boolean }> => {
+    isManualAuthRef.current = true
     try {
       // Přihlášení pomocí Supabase Auth
       const { data, error } = await withTimeout(
@@ -224,6 +229,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Login error:", error)
       return { success: false }
+    } finally {
+      isManualAuthRef.current = false
     }
   }
 

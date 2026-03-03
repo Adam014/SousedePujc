@@ -34,7 +34,11 @@ export default function NotificationDropdown() {
     // Navigace podle typu notifikace
     switch (notification.type) {
       case "booking_request":
-        router.push("/profile?tab=lent-items")
+        if (notification.title === "Žádost o půjčení odeslána") {
+          router.push("/profile?tab=bookings")
+        } else {
+          router.push("/profile?tab=lent-items")
+        }
         break
       case "booking_confirmed":
       case "booking_cancelled":

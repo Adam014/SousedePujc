@@ -1,12 +1,4 @@
 // Item condition labels and colors (used across item-card.tsx and items/[id]/page.tsx)
-export const CONDITION_LABELS = {
-  excellent: "Vyborny",
-  very_good: "Velmi dobry",
-  good: "Dobry",
-  fair: "Uspokojiv",
-  poor: "Spatny",
-} as const
-
 export const CONDITION_LABELS_CZ = {
   excellent: "Výborný",
   very_good: "Velmi dobrý",

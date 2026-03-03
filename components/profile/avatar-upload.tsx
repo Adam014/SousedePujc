@@ -111,7 +111,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
       }
 
       // Aktualizace uživatele v databázi
-      await db.updateUser(user.id, { avatar_url: undefined })
+      await db.updateUser(user.id, { avatar_url: null })
 
       // Aktualizace stavu
       setAvatarUrl(null)

@@ -175,16 +175,17 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
 
         setFilters((prev) => ({
           ...prev,
-          priceRange: [minPrice, maxPrice],
+          priceRange: [minPrice, maxPrice] as [number, number],
         }))
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error loading items:", error)
 
+      const msg = error instanceof Error ? error.message : ""
       const isNetworkErr =
-        error.message?.includes("NetworkError") ||
-        error.message?.includes("Failed to fetch") ||
-        error.message?.includes("Network request failed")
+        msg.includes("NetworkError") ||
+        msg.includes("Failed to fetch") ||
+        msg.includes("Network request failed")
 
       setIsNetworkError(isNetworkErr)
       setError(isNetworkErr ? "Nepodařilo se připojit k databázi" : "Chyba při načítání předmětů")
@@ -387,14 +388,21 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
         </Alert>
 
         {isNetworkError && (
-          <div className="text-center mb-8 sm:mb-12 py-4 sm:py-8">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-4 sm:mb-6 px-4">
-              Půjčte si od sousedů
-            </h1>
-            <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-4">
-              Objevte předměty ve vaší komunitě. Půjčte si to, co potřebujete, nebo nabídněte své věci ostatním. Šetřete
-              peníze a životní prostředí.
-            </p>
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="bg-blue-600 rounded-2xl px-4 sm:px-8 pt-8 sm:pt-10 pb-6 sm:pb-8">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+                Nekupujte.{" "}
+                <span className="relative inline-block">
+                  <span className="relative z-10">Půjčte si.</span>
+                  <svg className="absolute left-0 -bottom-1 w-full h-[0.35em]" viewBox="0 0 200 12" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 8 C20 2, 40 10, 70 5 C100 0, 120 9, 150 4 C170 1, 185 7, 198 3" stroke="rgba(255,255,255,0.5)" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </h1>
+              <p className="mt-3 sm:mt-4 text-sm sm:text-base text-blue-100/70 max-w-md mx-auto leading-relaxed">
+                Všechno, co potřebujete, je za rohem. Vrtačka, stan, kolo — vaši sousedé to mají.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -404,17 +412,27 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
   return (
     <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       {/* Hero sekce */}
-      <div className="text-center mb-8 sm:mb-12 py-4 sm:py-8">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent mb-4 sm:mb-6">
-          Půjčte si od sousedů
-        </h1>
-        <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-2">
-          Objevte předměty ve vaší komunitě. Půjčte si to, co potřebujete, nebo nabídněte své věci ostatním. Šetřete
-          peníze a životní prostředí.
-        </p>
+      <div className="relative text-center mb-8 sm:mb-12">
+        <div className="relative bg-blue-600 rounded-2xl px-4 sm:px-8 pt-8 sm:pt-10 pb-14 sm:pb-16">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+            Nekupujte.{" "}
+            <span className="relative inline-block px-2">
+              <span className="relative z-10">Půjčte si.</span>
+              <svg className="absolute -left-3 -right-3 -bottom-2 -top-1 w-[calc(100%+24px)] h-[calc(100%+12px)]" viewBox="0 0 200 40" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 20 C15 8, 35 4, 60 6 C90 3, 120 5, 150 4 C170 3, 188 8, 195 16 C198 22, 192 30, 175 33 C150 36, 120 35, 90 36 C60 37, 30 35, 15 32 C6 30, 3 26, 8 20Z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </h1>
 
-        {/* Vyhledávání */}
-        <SearchAutocomplete placeholder="Co hledáte?" onSearch={handleSearchChange} className="max-w-xs sm:max-w-md mx-auto" />
+          <p className="mt-3 sm:mt-4 text-sm sm:text-base text-blue-100/70 max-w-md mx-auto leading-relaxed">
+            Všechno, co potřebujete, je za rohem. Vrtačka, stan, kolo — vaši sousedé to mají.
+          </p>
+        </div>
+
+        {/* Vyhledávání — overlaps the blue section */}
+        <div className="relative z-10 -mt-8 sm:-mt-9 px-4">
+          <SearchAutocomplete placeholder="Co hledáte?" onSearch={handleSearchChange} variant="hero" className="max-w-sm sm:max-w-xl mx-auto" />
+        </div>
       </div>
 
       {/* Filtry */}

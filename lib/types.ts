@@ -4,7 +4,7 @@ export interface User {
   name: string
   phone?: string
   address?: string
-  avatar_url?: string
+  avatar_url?: string | null
   is_verified: boolean
   is_admin: boolean
   reputation_score: number
@@ -74,12 +74,21 @@ export interface Review {
   reviewed?: User
 }
 
+export type NotificationType =
+  | "booking_request"
+  | "booking_confirmed"
+  | "booking_cancelled"
+  | "booking_update"
+  | "new_message"
+  | "new_review"
+  | "review_received"
+
 export interface Notification {
   id: string
   user_id: string
   title: string
   message: string
-  type: string
+  type: NotificationType
   is_read: boolean
   created_at: string
 }

@@ -40,9 +40,6 @@ const nextConfig = {
       },
     ]
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     // Optimalizace obrázků pro maximální rychlost
     formats: ['image/avif', 'image/webp'],
@@ -70,7 +67,6 @@ const nextConfig = {
       'lucide-react',
       '@radix-ui/react-icons',
       'date-fns',
-      'fuse.js',
       '@supabase/supabase-js',
     ],
   },

@@ -14,6 +14,7 @@ import type { Item, Booking } from "@/lib/types"
 import { db } from "@/lib/database"
 import { useAuth } from "@/lib/auth"
 import { CONDITION_LABELS_CZ, CONDITION_COLORS, RENTAL_DISCOUNTS, findApplicableDiscount } from "@/lib/constants"
+import { useToast } from "@/components/ui/use-toast"
 import { formatDateCZ } from "@/lib/utils"
 import RatingDisplay from "@/components/ui/rating-display"
 import BookingCalendar from "@/components/calendar/booking-calendar"
@@ -39,6 +40,7 @@ interface ItemDetailClientProps {
 export default function ItemDetailClient({ item }: ItemDetailClientProps) {
   const router = useRouter()
   const { user } = useAuth()
+  const { toast } = useToast()
   const [bookingLoading, setBookingLoading] = useState(false)
   const [selectedDates, setSelectedDates] = useState<{
     from: Date | undefined
@@ -51,7 +53,6 @@ export default function ItemDetailClient({ item }: ItemDetailClientProps) {
   const [calendarKey, setCalendarKey] = useState(0)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
@@ -105,23 +106,7 @@ export default function ItemDetailClient({ item }: ItemDetailClientProps) {
 
       const newBooking = await db.createBooking(bookingData)
 
-      // Vytvoření notifikace pro majitele
-      await db.createNotification({
-        user_id: item.owner_id,
-        title: "Nová žádost o půjčení",
-        message: `${user.name} má zájem o půjčení předmětu "${item.title}"`,
-        type: "booking_request",
-        is_read: false,
-      })
-
-      // Send email notification to owner (non-blocking)
-      fetch('/api/emails/booking-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: newBooking.id, status: 'pending' })
-      }).catch(console.error)
-
-      // Vytvoření chat roomu pro komunikaci
+      // Create chat room (must happen before sending the first message)
       const chatRoomId = await db.createChatRoom({
         item_id: item.id,
         owner_id: item.owner_id,
@@ -129,43 +114,67 @@ export default function ItemDetailClient({ item }: ItemDetailClientProps) {
         booking_id: newBooking.id
       })
 
-      // Přidání první zprávy do chatu
-      if (chatRoomId) {
-        await db.sendChatMessage({
-          room_id: chatRoomId,
-          sender_id: user.id,
-          message: `Zdravím, mám zájem o půjčení předmětu "${item.title}" od ${selectedDates.from.toLocaleDateString("cs-CZ")} do ${selectedDates.to.toLocaleDateString("cs-CZ")}.${message ? ` ${message}` : ""}`,
-        })
-
-        // Notifikace o novém chatu pro majitele
-        await db.createNotification({
+      // Fire all independent side-effects in parallel — none should block the user
+      const sideEffects: Promise<unknown>[] = [
+        // Notification for owner about booking request
+        db.createNotification({
           user_id: item.owner_id,
-          title: "Nová zpráva v chatu",
-          message: `${user.name} vám poslal/a zprávu ohledně předmětu "${item.title}"`,
-          type: "new_message",
+          title: "Nová žádost o půjčení",
+          message: `${user.name} má zájem o půjčení předmětu "${item.title}"`,
+          type: "booking_request",
           is_read: false,
-        })
+        }),
+        // Notification for borrower confirming request was sent
+        db.createNotification({
+          user_id: user.id,
+          title: "Žádost o půjčení odeslána",
+          message: `Vaše žádost o půjčení předmětu "${item.title}" byla odeslána. Čekejte na odpověď majitele.`,
+          type: "booking_request",
+          is_read: false,
+        }),
+        // Email notification (non-blocking)
+        fetch('/api/emails/booking-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: newBooking.id, status: 'pending' })
+        }),
+      ]
+
+      if (chatRoomId) {
+        sideEffects.push(
+          db.sendChatMessage({
+            room_id: chatRoomId,
+            sender_id: user.id,
+            message: `Zdravím, mám zájem o půjčení předmětu "${item.title}" od ${selectedDates.from.toLocaleDateString("cs-CZ")} do ${selectedDates.to.toLocaleDateString("cs-CZ")}.${message ? ` ${message}` : ""}`,
+          }),
+          db.createNotification({
+            user_id: item.owner_id,
+            title: "Nová zpráva v chatu",
+            message: `${user.name} vám poslal/a zprávu ohledně předmětu "${item.title}"`,
+            type: "new_message",
+            is_read: false,
+          }),
+        )
       }
 
-      // Notifikace pro žadatele o potvrzení odeslání
-      await db.createNotification({
-        user_id: user.id,
-        title: "Žádost o půjčení odeslána",
-        message: `Vaše žádost o půjčení předmětu "${item.title}" byla odeslána. Čekejte na odpověď majitele.`,
-        type: "booking_request",
-        is_read: false,
-      })
+      // Wait for all, but don't fail the booking if a notification fails
+      await Promise.allSettled(sideEffects)
 
-      setSuccess("Žádost o půjčení byla odeslána! Majitel vás bude kontaktovat.")
+      toast({
+        title: "Žádost odeslána",
+        description: "Žádost o půjčení byla odeslána! Majitel vás bude kontaktovat.",
+        variant: "success",
+      })
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       setSelectedDates({ from: today, to: undefined })
       setMessage("")
       setCalendarKey(prev => prev + 1)
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating booking:", error)
 
-      if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
+      const msg = error instanceof Error ? error.message : ""
+      if (msg.includes("NetworkError") || msg.includes("Failed to fetch")) {
         setError("Došlo k chybě při připojení k databázi. Zkuste to prosím za chvíli.")
       } else {
         setError("Došlo k chybě při odesílání žádosti")
@@ -512,13 +521,7 @@ export default function ItemDetailClient({ item }: ItemDetailClientProps) {
                 </Alert>
               )}
 
-              {success && (
-                <Alert className="border-green-200 bg-green-50">
-                  <AlertDescription className="text-green-800">{success}</AlertDescription>
-                </Alert>
-              )}
-
-              {item.is_available && !isOwner && user && (
+{item.is_available && !isOwner && user && (
                 <>
                   <div>
                     <div className="mt-2">

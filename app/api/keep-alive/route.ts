@@ -18,10 +18,11 @@ export async function GET() {
       message: 'Supabase databáze úspěšně pingnuta.',
       timestamp: new Date().toISOString(),
     })
-  } catch (error: any) {
-    console.error('Chyba při Supabase keep-alive pingu:', error?.message)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Chyba při Supabase keep-alive pingu:', message)
     return NextResponse.json(
-      { message: 'Chyba při pingu Supabase.', error: error?.message },
+      { message: 'Chyba při pingu Supabase.', error: message },
       { status: 500 }
     )
   }

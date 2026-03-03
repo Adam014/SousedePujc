@@ -150,8 +150,8 @@ export default function Header() {
           </Link>
 
           {/* Vyhledávání - Desktop only */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <SearchAutocomplete className="w-full" />
+          <div className="hidden md:flex flex-1 max-w-xs mx-6">
+            <SearchAutocomplete className="w-full" variant="navbar" />
           </div>
 
           {/* Desktop Navigation */}

@@ -15,12 +15,14 @@ interface SearchAutocompleteProps {
   placeholder?: string
   onSearch?: (query: string) => void
   className?: string
+  variant?: "default" | "hero" | "navbar"
 }
 
 export default function SearchAutocomplete({
   placeholder = "Hledat předměty...",
   onSearch,
   className = "",
+  variant = "default",
 }: SearchAutocompleteProps) {
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<Item[]>([])
@@ -104,7 +106,11 @@ export default function SearchAutocomplete({
   return (
     <div className={`relative ${className}`}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+        <Search className={`absolute top-1/2 -translate-y-1/2 ${
+          variant === "hero" ? "left-5 sm:left-6 h-5 w-5 sm:h-6 sm:w-6 text-blue-500"
+          : variant === "navbar" ? "left-3 h-4 w-4 text-gray-400"
+          : "left-4 sm:left-5 h-5 w-5 text-blue-400"
+        }`} />
         <Input
           ref={inputRef}
           value={query}
@@ -113,32 +119,40 @@ export default function SearchAutocomplete({
           onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
-          className="pl-10"
+          className={
+            variant === "hero"
+              ? "pl-14 sm:pl-16 pr-5 h-14 sm:h-16 text-base sm:text-lg rounded-full border border-gray-200 bg-white shadow-[0_8px_30px_rgba(37,99,235,0.18)] focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-0 placeholder:text-gray-400 transition-all"
+            : variant === "navbar"
+              ? "pl-9 pr-3 h-9 text-sm rounded-lg bg-gray-100 border-0 focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:ring-offset-0 focus-visible:bg-white placeholder:text-gray-400 transition-all"
+            : "pl-12 sm:pl-14 pr-4 h-12 sm:h-14 text-sm sm:text-base rounded-full border-0 bg-white shadow-xl ring-1 ring-gray-200 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 placeholder:text-gray-400 transition-all"
+          }
         />
       </div>
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-[100] w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-2xl max-h-72 overflow-auto">
           {suggestions.map((item) => (
             <button
               key={item.id}
               type="button"
-              className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
+              className="w-full px-4 sm:px-5 py-3 sm:py-4 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none border-b border-gray-100 last:border-b-0 transition-colors"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSuggestionClick(item)}
             >
-              <div className="flex items-center space-x-3">
-                <Image
-                  src={item.images[0] || "/placeholder.svg?height=40&width=40"}
-                  alt={item.title}
-                  width={40}
-                  height={40}
-                  className="object-cover rounded"
-                />
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="relative h-12 w-12 sm:h-14 sm:w-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                  <Image
+                    src={item.images[0] || "/placeholder.svg?height=56&width=56"}
+                    alt={item.title}
+                    fill
+                    sizes="56px"
+                    className="object-contain"
+                  />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
-                  <p className="text-xs text-gray-500 truncate">{item.category?.name}</p>
-                  <p className="text-xs text-blue-600 font-medium">{item.daily_rate} Kč/den</p>
+                  <p className="text-sm sm:text-base font-medium text-gray-900 truncate">{item.title}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 truncate">{item.category?.name}</p>
+                  <p className="text-xs sm:text-sm text-blue-600 font-semibold">{item.daily_rate} Kč/den</p>
                 </div>
               </div>
             </button>

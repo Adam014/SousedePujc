@@ -95,14 +95,14 @@ export default function EditItemPage() {
         // Načtení kategorií
         const categoriesData = await db.getCategories()
         setCategories(categoriesData)
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error loading data:", error)
 
-        // Kontrola, zda jde o síťovou chybu
+        const msg = error instanceof Error ? error.message : ""
         const isNetworkErr =
-          error.message?.includes("NetworkError") ||
-          error.message?.includes("Failed to fetch") ||
-          error.message?.includes("Network request failed")
+          msg.includes("NetworkError") ||
+          msg.includes("Failed to fetch") ||
+          msg.includes("Network request failed")
 
         setIsNetworkError(isNetworkErr)
         setError(isNetworkErr ? "Nepodařilo se připojit k databázi" : "Chyba při načítání dat")

@@ -174,32 +174,26 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
             />
 
             <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-2 top-2 bg-black/50 hover:bg-black/70 border-none text-white rounded-full"
+              className="absolute right-3 top-3 z-10 h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 border-none text-white shadow-lg transition-all"
               onClick={() => setIsOpen(false)}
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
               <span className="sr-only">Zavřít</span>
             </Button>
 
             <Button
-              variant="outline"
-              size="icon"
-              className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 border-none text-white rounded-full"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 border-none text-white shadow-lg transition-all"
               onClick={handlePrevious}
             >
-              <ChevronLeft className="h-6 w-6" />
+              <ChevronLeft className="h-7 w-7" />
               <span className="sr-only">Předchozí</span>
             </Button>
 
             <Button
-              variant="outline"
-              size="icon"
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 border-none text-white rounded-full"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 border-none text-white shadow-lg transition-all"
               onClick={handleNext}
             >
-              <ChevronRight className="h-6 w-6" />
+              <ChevronRight className="h-7 w-7" />
               <span className="sr-only">Další</span>
             </Button>
 
