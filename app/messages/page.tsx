@@ -10,15 +10,20 @@ import { supabase } from "@/lib/supabase"
 import { MessageCircle } from "lucide-react"
 
 export default function MessagesPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [chatRooms, setChatRooms] = useState<ChatRoomType[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadChatRooms = async () => {
-      if (!user) return
+    if (authLoading) return
 
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    const loadChatRooms = async () => {
       try {
         setLoading(true)
         const rooms = await db.getChatRoomsByUser(user.id)
@@ -51,7 +56,7 @@ export default function MessagesPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user])
+  }, [user, authLoading])
 
   const handleSelectRoom = (roomId: string) => {
     setSelectedRoomId(roomId)
@@ -59,6 +64,14 @@ export default function MessagesPage() {
 
   const handleBack = () => {
     setSelectedRoomId(null)
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   if (!user) {

@@ -5,7 +5,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "./types"
 import { db } from "./database"
-import { supabase, withTimeout, TIMEOUTS } from "./supabase"
+import { supabase } from "./supabase"
 
 interface AuthContextType {
   user: User | null
@@ -42,12 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     isMountedRef.current = true
 
-    const loadUserData = async (email: string, emailConfirmed: boolean, retries = 2): Promise<{ user: User | null; error: boolean }> => {
+    const loadUserData = async (email: string, emailConfirmed: boolean, retries = 1): Promise<{ user: User | null; error: boolean }> => {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          // No outer withTimeout — the Supabase client already has a fetch-level
-          // timeout (TIMEOUTS.QUERY = 15s). Wrapping with a shorter AUTH timeout (10s)
-          // causes premature failures on cold starts / slow initial connections.
           const userData = await db.getUserByEmail(email)
           if (userData) {
             // Aktualizujeme stav ověření na základě Supabase
@@ -66,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           if (attempt < retries) {
             console.warn(`loadUserData attempt ${attempt + 1} failed, retrying...`)
-            await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+            await new Promise(r => setTimeout(r, 1000))
             continue
           }
           console.error("Error loading user data after retries:", error)
@@ -82,14 +79,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoadingUserRef.current = true
 
       try {
-        // Zkontrolujeme, zda je uživatel přihlášen v Supabase (s timeoutem)
+        // Zkontrolujeme, zda je uživatel přihlášen v Supabase
+        // No withTimeout here — the Supabase client already has a fetch-level
+        // timeout (TIMEOUTS.QUERY = 15s). Adding a shorter timeout causes
+        // premature failures on cold starts, leaving user=null while the real
+        // response arrives later via onAuthStateChange, causing race conditions.
         const {
           data: { session },
-        } = await withTimeout(
-          supabase.auth.getSession(),
-          TIMEOUTS.AUTH,
-          "Auth getSession"
-        )
+        } = await supabase.auth.getSession()
 
         if (session?.user && isMountedRef.current) {
           const result = await loadUserData(
@@ -184,11 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isManualAuthRef.current = true
     try {
       // Přihlášení pomocí Supabase Auth
-      const { data, error } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password }),
-        TIMEOUTS.AUTH,
-        "Login signInWithPassword"
-      )
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
         // Zkontrolujeme, zda je problém s neověřeným e-mailem
@@ -206,11 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Získáme uživatelská data z naší databáze
-      const userData = await withTimeout(
-        db.getUserByEmail(email),
-        TIMEOUTS.AUTH,
-        "Login getUserByEmail"
-      )
+      const userData = await db.getUserByEmail(email)
       if (userData) {
         // Aktualizujeme stav ověření
         if (data.user?.email_confirmed_at && !userData.is_verified) {
@@ -244,30 +233,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {
     try {
       // Zkontrolujeme, zda uživatel již existuje v naší databázi
-      const existingUser = await withTimeout(
-        db.getUserByEmail(userData.email),
-        TIMEOUTS.AUTH,
-        "Register getUserByEmail"
-      )
+      const existingUser = await db.getUserByEmail(userData.email)
       if (existingUser) {
         return false
       }
 
       // Registrace pomocí Supabase Auth s povoleným e-mailovým ověřením
-      const { data, error } = await withTimeout(
-        supabase.auth.signUp({
-          email: userData.email,
-          password: userData.password,
-          options: {
-            data: {
-              name: userData.name,
-            },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            name: userData.name,
           },
-        }),
-        TIMEOUTS.AUTH,
-        "Register signUp"
-      )
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
 
       if (error) {
         console.error("Registration error:", error.message)
@@ -281,14 +262,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Vytvoříme uživatele v naší databázi (neověřený)
       // Pass the Supabase Auth UID so public.users.id matches auth.uid()
-      await withTimeout(db.createUser({
+      await db.createUser({
         id: data.user.id,
         email: userData.email,
         name: userData.name,
         is_verified: false,
         is_admin: false,
         reputation_score: 5.0,
-      }), TIMEOUTS.AUTH, "Register createUser")
+      })
 
       // Nebudeme uživatele automaticky přihlašovat
       return true
@@ -300,17 +281,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendVerification = async (email: string): Promise<boolean> => {
     try {
-      const { error } = await withTimeout(
-        supabase.auth.resend({
-          type: "signup",
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        }),
-        TIMEOUTS.AUTH,
-        "Resend verification"
-      )
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
 
       if (error) {
         console.error("Resend verification error:", error.message)
