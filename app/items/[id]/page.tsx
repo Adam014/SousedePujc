@@ -164,7 +164,7 @@ export default function ItemDetailPage() {
         item_id: item.id,
         owner_id: item.owner_id,
         borrower_id: user.id,
-        booking_id: ""
+        booking_id: newBooking.id
       })
 
       // Přidání první zprávy do chatu
