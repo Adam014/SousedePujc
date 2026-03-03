@@ -104,13 +104,8 @@ export default function NewItemPage() {
         images: images.length > 0 ? images : ["/placeholder.svg?height=300&width=400"],
       }
 
-      await db.createItem(itemData)
-      setSuccess("Předmět byl úspěšně vytvořen!")
-
-      // Přesměrování po 2 sekundách
-      setTimeout(() => {
-        router.push("/profile?tab=items")
-      }, 2000)
+      const createdItem = await db.createItem(itemData)
+      router.push(`/items/${createdItem.id}`)
     } catch (error) {
       console.error("Error creating item:", error)
       setError("Došlo k chybě při vytváření předmětu. Zkuste to prosím znovu.")
