@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -35,6 +35,13 @@ export default function MobileMenu({ unreadMessages }: MobileMenuProps) {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    setOpen(false)
+    await logout()
+    router.push("/")
+  }
 
   const handleLinkClick = () => {
     setOpen(false)
@@ -189,10 +196,7 @@ export default function MobileMenu({ unreadMessages }: MobileMenuProps) {
                 <Button
                   variant="outline"
                   className="w-full touch-target justify-start"
-                  onClick={() => {
-                    logout()
-                    setOpen(false)
-                  }}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-5 w-5 mr-3" />
                   Odhlásit se

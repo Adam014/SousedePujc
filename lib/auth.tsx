@@ -14,7 +14,7 @@ interface AuthContextType {
     password: string,
     rememberMe?: boolean,
   ) => Promise<{ success: boolean; needsVerification?: boolean }>
-  logout: () => void
+  logout: () => Promise<void>
   register: (userData: { email: string; name: string; password: string }) => Promise<boolean>
   resendVerification: (email: string) => Promise<boolean>
   loading: boolean
@@ -234,12 +234,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
+    // Okamžitě vyčistíme UI stav
+    setUser(null)
+
     // Odstraníme session token z localStorage
     const sessionKey = getSessionStorageKey()
     localStorage.removeItem(sessionKey)
 
+    // Odhlásíme ze Supabase (na pozadí)
     await supabase.auth.signOut()
-    setUser(null)
   }
 
   const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {

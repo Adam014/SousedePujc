@@ -16,7 +16,7 @@ import { Plus, User, LogOut, Settings, Package, MessageSquare } from "lucide-rea
 import { useAuth } from "@/lib/auth"
 import { db } from "@/lib/database"
 import MobileMenu from "@/components/layout/mobile-menu"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
 const NotificationDropdown = dynamic(() => import("@/components/notifications/notification-dropdown"), {
@@ -31,6 +31,12 @@ export default function Header() {
   const { user, logout } = useAuth()
   const [unreadMessages, setUnreadMessages] = useState(0)
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout()
+    router.push("/")
+  }
 
   // Kontrola, zda jsme v chat místnosti
   const isInChatRoom = pathname?.startsWith("/messages/") || false
@@ -220,7 +226,7 @@ export default function Header() {
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout}>
+                    <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="mr-2 h-4 w-4" />
                       Odhlásit se
                     </DropdownMenuItem>
