@@ -64,8 +64,6 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log("New message received:", payload)
-
           // Načteme kompletní zprávu s relacemi
           try {
             const { data: newMessage, error } = await supabase
@@ -130,8 +128,6 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log("Message updated:", payload)
-
           // Načteme aktualizovanou zprávu
           try {
             const { data: updatedMessage, error } = await supabase
@@ -188,7 +184,6 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          console.log("Message deleted:", payload)
           setMessages((prev) => prev.filter((msg) => msg.id !== payload.old.id))
         },
       )
@@ -201,13 +196,20 @@ export function useRealtimeChat(roomId: string, currentUserId: string) {
           table: "message_reactions",
         },
         async (payload) => {
-          console.log("Reaction changed:", payload)
-
           // Získáme message_id z payloadu
-          const messageId = payload.new?.message_id || payload.old?.message_id
+          const messageId = (payload.new as Record<string, string> | undefined)?.message_id || (payload.old as Record<string, string> | undefined)?.message_id
           if (!messageId) return
 
-          // Aktualizujeme pouze reakce pro konkrétní zprávu, ne všechny zprávy
+          // Aktualizujeme pouze reakce pro zprávu, pokud patří do aktuální místnosti
+          // Use setMessages to access current state (avoids stale closure)
+          let messageFound = false
+          setMessages((prev) => {
+            messageFound = prev.some((msg) => msg.id === messageId)
+            return prev // no-op, just checking
+          })
+
+          if (!messageFound) return
+
           try {
             const { data: reactions, error } = await supabase
               .from("message_reactions")

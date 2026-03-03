@@ -157,7 +157,7 @@ export default function ProfilePage() {
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Zkusit znovu</Button>
+            <Button onClick={() => router.refresh()}>Zkusit znovu</Button>
           </CardContent>
         </Card>
       </div>

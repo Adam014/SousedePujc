@@ -12,7 +12,7 @@ export default function ChatRoomPage() {
 
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-57px)]">
+      <div className="flex justify-center items-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
@@ -20,7 +20,7 @@ export default function ChatRoomPage() {
 
   if (!user) {
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-57px)]">
+      <div className="flex justify-center items-center h-full">
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-gray-700 font-medium">Pro zobrazení zpráv se musíte přihlásit</p>
@@ -39,7 +39,7 @@ export default function ChatRoomPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-57px)]">
+    <div className="h-full">
       <ChatRoom roomId={roomId} />
     </div>
   )

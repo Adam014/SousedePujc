@@ -35,13 +35,11 @@ export default function EditItemPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isNetworkError, setIsNetworkError] = useState(false)
   const [isFree, setIsFree] = useState(false)
   const [images, setImages] = useState<string[]>([])
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -168,20 +166,6 @@ export default function EditItemPage() {
       setError("Došlo k chybě při aktualizaci předmětu. Zkuste to prosím znovu.")
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleDeleteItem = async () => {
-    if (!user || !item) return
-
-    try {
-      setDeleting(true)
-      await db.deleteItem(item.id)
-      router.push("/profile?tab=items")
-    } catch (error) {
-      console.error("Error deleting item:", error)
-      setError("Došlo k chybě při mazání předmětu")
-      setDeleting(false)
     }
   }
 

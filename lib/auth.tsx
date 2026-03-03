@@ -5,7 +5,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState, useRef } from "react"
 import type { User } from "./types"
 import { db } from "./database"
-import { supabase } from "./supabase"
+import { supabase, withTimeout, TIMEOUTS } from "./supabase"
 
 interface AuthContextType {
   user: User | null
@@ -22,26 +22,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// Generujeme unikátní ID pro každou instanci prohlížeče
-// Using crypto.getRandomValues() for cryptographically secure random ID
-const generateBrowserId = () => {
-  const existingId = localStorage.getItem("browser_session_id")
-  if (existingId) return existingId
-
-  // Use crypto API for secure random generation
-  const array = new Uint8Array(16)
-  crypto.getRandomValues(array)
-  const newId = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
-  localStorage.setItem("browser_session_id", newId)
-  return newId
-}
-
-// Unikátní ID pro tuto instanci prohlížeče
-const BROWSER_ID = typeof window !== "undefined" ? generateBrowserId() : ""
-
-// Klíč pro ukládání session do localStorage
-const getSessionStorageKey = () => `supabase_auth_token_${BROWSER_ID}`
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -86,15 +66,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoadingUserRef.current = true
 
       try {
-        // Zkontrolujeme, zda je uživatel přihlášen v Supabase
+        // Zkontrolujeme, zda je uživatel přihlášen v Supabase (s timeoutem)
         const {
           data: { session },
-        } = await supabase.auth.getSession()
+        } = await withTimeout(
+          supabase.auth.getSession(),
+          TIMEOUTS.AUTH,
+          "Auth getSession"
+        )
 
         if (session?.user && isMountedRef.current) {
-          const result = await loadUserData(
-            session.user.email || "",
-            !!session.user.email_confirmed_at
+          const result = await withTimeout(
+            loadUserData(
+              session.user.email || "",
+              !!session.user.email_confirmed_at
+            ),
+            TIMEOUTS.AUTH,
+            "Auth loadUserData"
           )
 
           if (result.user && isMountedRef.current) {
@@ -108,11 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error("Error initializing auth:", error)
       } finally {
+        // Always reset loading state, even if unmounted (to prevent deadlock)
+        isLoadingUserRef.current = false
         if (isMountedRef.current) {
           setLoading(false)
           isInitializedRef.current = true
         }
-        isLoadingUserRef.current = false
       }
     }
 
@@ -132,14 +121,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoadingUserRef.current = true
 
         try {
-          const result = await loadUserData(
-            session.user.email || "",
-            !!session.user.email_confirmed_at
+          const result = await withTimeout(
+            loadUserData(
+              session.user.email || "",
+              !!session.user.email_confirmed_at
+            ),
+            TIMEOUTS.AUTH,
+            "Auth SIGNED_IN loadUserData"
           )
           if (result.user && isMountedRef.current) {
             setUser(result.user)
           }
-          // Don't sign out on errors during auth state change
         } catch (error) {
           console.error("Error in auth state change:", error)
         } finally {
@@ -154,14 +146,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!userRef.current && isMountedRef.current && !isLoadingUserRef.current) {
           isLoadingUserRef.current = true
           try {
-            const result = await loadUserData(
-              session.user.email || "",
-              !!session.user.email_confirmed_at
+            const result = await withTimeout(
+              loadUserData(
+                session.user.email || "",
+                !!session.user.email_confirmed_at
+              ),
+              TIMEOUTS.AUTH,
+              "Auth TOKEN_REFRESHED loadUserData"
             )
             if (result.user && isMountedRef.current) {
               setUser(result.user)
             }
-            // Don't sign out on errors during token refresh
           } catch (error) {
             console.error("Error refreshing user on token refresh:", error)
           } finally {
@@ -185,10 +180,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; needsVerification?: boolean }> => {
     try {
       // Přihlášení pomocí Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        TIMEOUTS.AUTH,
+        "Login signInWithPassword"
+      )
 
       if (error) {
         // Zkontrolujeme, zda je problém s neověřeným e-mailem
@@ -206,18 +202,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Získáme uživatelská data z naší databáze
-      const userData = await db.getUserByEmail(email)
+      const userData = await withTimeout(
+        db.getUserByEmail(email),
+        TIMEOUTS.AUTH,
+        "Login getUserByEmail"
+      )
       if (userData) {
         // Aktualizujeme stav ověření
         if (data.user?.email_confirmed_at && !userData.is_verified) {
           await db.updateUser(userData.id, { is_verified: true })
           userData.is_verified = true
-        }
-
-        // Uložíme session token do localStorage s unikátním klíčem pro tuto instanci
-        if (data.session) {
-          const sessionKey = getSessionStorageKey()
-          localStorage.setItem(sessionKey, JSON.stringify(data.session))
         }
 
         setUser(userData)
@@ -237,49 +231,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Okamžitě vyčistíme UI stav
     setUser(null)
 
-    // Odstraníme session token z localStorage
-    const sessionKey = getSessionStorageKey()
-    localStorage.removeItem(sessionKey)
-
-    // Odhlásíme ze Supabase (na pozadí)
+    // Odhlásíme ze Supabase
     await supabase.auth.signOut()
   }
 
   const register = async (userData: { email: string; name: string; password: string }): Promise<boolean> => {
     try {
       // Zkontrolujeme, zda uživatel již existuje v naší databázi
-      const existingUser = await db.getUserByEmail(userData.email)
+      const existingUser = await withTimeout(
+        db.getUserByEmail(userData.email),
+        TIMEOUTS.AUTH,
+        "Register getUserByEmail"
+      )
       if (existingUser) {
         return false
       }
 
       // Registrace pomocí Supabase Auth s povoleným e-mailovým ověřením
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            name: userData.name,
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email: userData.email,
+          password: userData.password,
+          options: {
+            data: {
+              name: userData.name,
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
+        }),
+        TIMEOUTS.AUTH,
+        "Register signUp"
+      )
 
       if (error) {
         console.error("Registration error:", error.message)
         return false
       }
 
+      if (!data.user) {
+        console.error("Registration error: no user returned from signUp")
+        return false
+      }
+
       // Vytvoříme uživatele v naší databázi (neověřený)
       // Pass the Supabase Auth UID so public.users.id matches auth.uid()
-      await db.createUser({
-        id: data.user!.id,
+      await withTimeout(db.createUser({
+        id: data.user.id,
         email: userData.email,
         name: userData.name,
         is_verified: false,
         is_admin: false,
         reputation_score: 5.0,
-      })
+      }), TIMEOUTS.AUTH, "Register createUser")
 
       // Nebudeme uživatele automaticky přihlašovat
       return true

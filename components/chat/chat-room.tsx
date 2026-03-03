@@ -74,7 +74,7 @@ export default function ChatRoom({ roomId, isPopup = false, isInline = false, on
   // Funkce pro získání druhého uživatele v konverzaci
   const getOtherUser = (): User | null => {
     if (!user || !room) return null
-    return user.id === room.owner_id ? room.borrower : room.owner
+    return (user.id === room.owner_id ? room.borrower : room.owner) ?? null
   }
 
   // Načtení dat místnosti
@@ -190,7 +190,6 @@ export default function ChatRoom({ roomId, isPopup = false, isInline = false, on
         replyToMessage?.id,
       )
 
-      console.log("File sent:", result)
       setReplyToMessage(null)
     } catch (error) {
       console.error("Error sending file:", error)
@@ -349,7 +348,7 @@ export default function ChatRoom({ roomId, isPopup = false, isInline = false, on
     ? "h-[500px] w-[calc(100vw-2rem)] sm:w-[400px] max-w-[400px] shadow-xl"
     : isInline
       ? "h-full"
-      : "h-[calc(100vh-57px)]"
+      : "h-full"
 
   const headerContent = (
     <div className="flex items-center">

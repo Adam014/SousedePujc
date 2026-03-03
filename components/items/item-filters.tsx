@@ -67,8 +67,8 @@ export default function ItemFilters({
   }
 
   const handleFilterReset = () => {
-    const resetFilters = {
-      priceRange: [minPrice, maxPrice],
+    const resetFilters: FilterValues = {
+      priceRange: [minPrice, maxPrice] as [number, number],
       distance: undefined,
       availability: "all",
     }

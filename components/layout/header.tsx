@@ -81,7 +81,7 @@ export default function Header() {
     // Načteme počet nepřečtených zpráv při prvním renderu
     loadUnreadMessages()
 
-    // Nastavíme realtime subscription POUZE pro zprávy pro tohoto uživatele
+    // Realtime subscription pro nové zprávy - filtrujeme jen ty, které nejsou od nás
     const channel = supabase
       .channel(`header_unread_messages_${user.id}`)
       .on(
@@ -90,11 +90,12 @@ export default function Header() {
           event: "INSERT",
           schema: "public",
           table: "chat_messages",
-          filter: `receiver_id=eq.${user.id}`,
         },
-        () => {
-          // Aktualizujeme s debouncing
-          debouncedLoadUnreadMessages()
+        (payload) => {
+          // Ignorujeme vlastní zprávy
+          if (payload.new && (payload.new as { sender_id: string }).sender_id !== user.id) {
+            debouncedLoadUnreadMessages()
+          }
         },
       )
       .subscribe()

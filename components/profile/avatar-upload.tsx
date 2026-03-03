@@ -18,7 +18,7 @@ interface AvatarUploadProps {
 
 export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps) {
   const [uploading, setUploading] = useState(false)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatar_url)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatar_url ?? null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
@@ -111,7 +111,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
       }
 
       // Aktualizace uživatele v databázi
-      await db.updateUser(user.id, { avatar_url: null })
+      await db.updateUser(user.id, { avatar_url: undefined })
 
       // Aktualizace stavu
       setAvatarUrl(null)

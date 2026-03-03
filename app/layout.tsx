@@ -28,9 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
-              <div className="flex flex-col min-h-screen">
+              <div className="flex flex-col h-screen">
                 <Header />
-                <main className="flex-1">{children}</main>
+                <main className="flex-1 overflow-y-auto">{children}</main>
                 <ChatPopup />
                 <Toaster />
               </div>

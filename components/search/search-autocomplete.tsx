@@ -2,14 +2,14 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import type { Item } from "@/lib/types"
 import { db } from "@/lib/database"
-import { createItemSearch, searchItems, fuzzyMatchItems } from "@/lib/search"
+import { fuzzyMatchItems } from "@/lib/search"
 
 interface SearchAutocompleteProps {
   placeholder?: string
@@ -26,21 +26,33 @@ export default function SearchAutocomplete({
   const [suggestions, setSuggestions] = useState<Item[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [allItems, setAllItems] = useState<Item[]>([])
-  const [itemsLoaded, setItemsLoaded] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const itemsLoadedRef = useRef(false)
 
-  const loadItemsOnce = useRef(async () => {
-    if (itemsLoaded) return
-    const items = await db.getItems()
-    setAllItems(items)
-    setItemsLoaded(true)
-  }).current
+  // Load items on mount eagerly
+  useEffect(() => {
+    if (itemsLoadedRef.current) return
+    let cancelled = false
 
-  // Create search index when items change
-  const searchIndex = useMemo(() => createItemSearch(allItems), [allItems])
+    const loadItems = async () => {
+      try {
+        const items = await db.getItems()
+        if (!cancelled) {
+          setAllItems(items)
+          itemsLoadedRef.current = true
+        }
+      } catch (error) {
+        console.error("Error loading items for search:", error)
+      }
+    }
 
+    loadItems()
+    return () => { cancelled = true }
+  }, [])
+
+  // Search when query or items change
   useEffect(() => {
     if (query.length < 2) {
       setSuggestions([])
@@ -61,9 +73,12 @@ export default function SearchAutocomplete({
   }, [query, allItems])
 
   const handleSearch = (searchQuery: string) => {
+    if (!searchQuery.trim()) return
     if (onSearch) {
       onSearch(searchQuery)
     } else {
+      // Dispatch event so HomeClient can pick it up directly (no URL timing issues)
+      window.dispatchEvent(new CustomEvent("app:search", { detail: searchQuery }))
       router.push(`/?search=${encodeURIComponent(searchQuery)}`)
     }
     setShowSuggestions(false)
@@ -95,7 +110,7 @@ export default function SearchAutocomplete({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => { loadItemsOnce(); query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true) }}
+          onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           className="pl-10"
@@ -103,12 +118,13 @@ export default function SearchAutocomplete({
       </div>
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
           {suggestions.map((item) => (
             <button
               key={item.id}
               type="button"
               className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSuggestionClick(item)}
             >
               <div className="flex items-center space-x-3">

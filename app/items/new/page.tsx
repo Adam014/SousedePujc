@@ -45,25 +45,26 @@ export default function NewItemPage() {
     location: "",
   })
 
+  // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login")
-      return
-    }
-
-    if (user) {
-      const loadCategories = async () => {
-        try {
-          const data = await db.getCategories()
-          setCategories(data)
-        } catch (error) {
-          console.error("Error loading categories:", error)
-          setError("Chyba při načítání kategorií")
-        }
-      }
-      loadCategories()
     }
   }, [user, authLoading, router])
+
+  // Load categories on mount (public data, no auth needed)
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await db.getCategories()
+        setCategories(data)
+      } catch (error) {
+        console.error("Error loading categories:", error)
+        setError("Chyba při načítání kategorií")
+      }
+    }
+    loadCategories()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

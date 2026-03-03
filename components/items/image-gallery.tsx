@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,37 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
     setIsOpen(true)
   }
 
+  // Touch swipe support
+  const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  const SWIPE_THRESHOLD = 50
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }, [])
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return
+
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current
+
+    // Only swipe if horizontal movement is greater than vertical (avoid hijacking scroll)
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX < 0) {
+        handleNext()
+      } else {
+        handlePrevious()
+      }
+      // Prevent opening the modal when swiping
+      e.preventDefault()
+    }
+
+    touchStartX.current = null
+    touchStartY.current = null
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") {
       handlePrevious()
@@ -55,12 +86,17 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
   return (
     <div className="space-y-4" onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Hlavní obrázek */}
-      <div className="relative aspect-video rounded-lg overflow-hidden mb-4 cursor-pointer" onClick={handleOpenGallery}>
+      <div
+        className="relative aspect-video rounded-lg overflow-hidden mb-4 cursor-pointer touch-pan-y"
+        onClick={handleOpenGallery}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <Image
           src={images[currentIndex] || "/placeholder.svg"}
           alt={`${alt} - obrázek ${currentIndex + 1}`}
           fill
-          className="object-cover"
+          className="object-cover pointer-events-none"
         />
 
         {images.length > 1 && (
@@ -125,7 +161,11 @@ export default function ImageGallery({ images, alt }: ImageGalleryProps) {
       {/* Modální galerie */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-4xl p-0 bg-black border-none">
-          <div className="relative h-[80vh] flex items-center justify-center">
+          <div
+            className="relative h-[80vh] flex items-center justify-center touch-pan-y"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <Image
               src={images[currentIndex] || "/placeholder.svg"}
               alt={`${alt} - obrázek ${currentIndex + 1}`}

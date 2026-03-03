@@ -1,7 +1,6 @@
-import Fuse from 'fuse.js'
 import type { Item } from './types'
 
-// Remove Czech diacritics for better matching
+// Remove Czech diacritics for matching
 function removeDiacritics(str: string): string {
   return str
     .normalize('NFD')
@@ -9,107 +8,15 @@ function removeDiacritics(str: string): string {
     .toLowerCase()
 }
 
-// Type for normalized item used in search
-interface NormalizedItem {
-  original: Item
-  searchTitle: string
-  searchCategory: string
-  searchDescription: string
-}
-
-// Fuse.js options for fuzzy search on normalized data
-const fuseOptions: Fuse.IFuseOptions<NormalizedItem> = {
-  keys: [
-    { name: 'searchTitle', weight: 0.5 },
-    { name: 'searchCategory', weight: 0.3 },
-    { name: 'searchDescription', weight: 0.2 }
-  ],
-  threshold: 0.8,         // Very permissive to allow substring matching with typos
-  distance: 1000,         // Large distance for substring matching
-  ignoreLocation: true,   // Don't care where in string the match is
-  includeScore: true,
-  minMatchCharLength: 2,
-  findAllMatches: true,
-}
-
-// Create a Fuse instance from items with pre-normalized data
-export function createItemSearch(items: Item[]): Fuse<NormalizedItem> {
-  // Pre-normalize all searchable fields
-  const normalizedItems: NormalizedItem[] = items.map(item => ({
-    original: item,
-    searchTitle: removeDiacritics(item.title || ''),
-    searchCategory: removeDiacritics(item.category?.name || ''),
-    searchDescription: removeDiacritics(item.description || ''),
-  }))
-
-  return new Fuse(normalizedItems, fuseOptions)
-}
-
-// Search items using fuzzy matching with fallback to substring search
-export function searchItems(fuse: Fuse<NormalizedItem>, query: string): Item[] {
-  if (!query || query.length < 2) return []
-
-  // Normalize the query (remove diacritics)
-  const normalizedQuery = removeDiacritics(query)
-
-  // Try fuzzy search first
-  const fuzzyResults = fuse.search(normalizedQuery)
-
-  if (fuzzyResults.length > 0) {
-    return fuzzyResults.map(result => result.item.original)
-  }
-
-  // Fallback: manual fuzzy substring matching
-  // Get all items from the fuse index and check manually
-  const allItems = (fuse as any)._docs as NormalizedItem[]
-  if (!allItems) return []
-
-  return allItems
-    .filter(item => {
-      // Check if normalized query is similar to any substring of the title
-      const title = item.searchTitle
-      const queryLen = normalizedQuery.length
-
-      // Slide through title checking substrings of same length as query
-      for (let i = 0; i <= title.length - queryLen; i++) {
-        const substring = title.slice(i, i + queryLen)
-        if (levenshteinDistance(normalizedQuery, substring) <= 2) {
-          return true
-        }
-      }
-
-      // Also check slightly longer/shorter substrings (for insertions/deletions)
-      for (let i = 0; i <= title.length - queryLen - 1; i++) {
-        const substring = title.slice(i, i + queryLen + 1)
-        if (levenshteinDistance(normalizedQuery, substring) <= 2) {
-          return true
-        }
-      }
-      for (let i = 0; i <= title.length - queryLen + 1 && queryLen > 1; i++) {
-        const substring = title.slice(i, i + queryLen - 1)
-        if (levenshteinDistance(normalizedQuery, substring) <= 2) {
-          return true
-        }
-      }
-
-      return false
-    })
-    .map(item => item.original)
-}
-
-// Calculate Levenshtein distance between two strings
-function levenshteinDistance(a: string, b: string): number {
+// Levenshtein distance
+function levenshtein(a: string, b: string): number {
   if (a.length === 0) return b.length
   if (b.length === 0) return a.length
 
   const matrix: number[][] = []
 
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i]
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j
-  }
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i]
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j
 
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
@@ -117,9 +24,9 @@ function levenshteinDistance(a: string, b: string): number {
         matrix[i][j] = matrix[i - 1][j - 1]
       } else {
         matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
         )
       }
     }
@@ -128,90 +35,98 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length]
 }
 
-// Check if two strings are similar (allow up to 2 character differences)
-function isSimilar(a: string, b: string): boolean {
-  if (a.includes(b) || b.includes(a)) return true
-  if (Math.abs(a.length - b.length) > 2) return false
-
-  return levenshteinDistance(a, b) <= 2
+// Max allowed typos based on query length
+function maxTypos(queryLen: number): number {
+  if (queryLen <= 3) return 0
+  if (queryLen <= 5) return 1
+  if (queryLen <= 8) return 2
+  return 3
 }
 
-// Simple contains search for fallback
-export function simpleSearch(items: Item[], query: string): Item[] {
-  if (!query) return items
+// Split text into words
+function getWords(text: string): string[] {
+  return text.split(/\s+/).filter(w => w.length > 0)
+}
 
-  const lowerQuery = query.toLowerCase()
-  return items.filter(item =>
-    item.title.toLowerCase().includes(lowerQuery) ||
-    item.description?.toLowerCase().includes(lowerQuery) ||
-    item.category?.name.toLowerCase().includes(lowerQuery)
-  )
+interface ScoredItem {
+  item: Item
+  score: number
 }
 
 /**
- * Professional fuzzy search for items
- * Handles: typos, diacritics (Czech chars), partial matches, substring matches
+ * Search items with proper relevance scoring.
+ * Priority: exact substring > word-start match > word fuzzy match
  */
 export function fuzzyMatchItems(items: Item[], query: string): Item[] {
   if (!query || query.length < 2) return []
 
-  const normalizedQuery = removeDiacritics(query)
-  const queryLen = normalizedQuery.length
+  const q = removeDiacritics(query.trim())
+  if (q.length < 2) return []
 
-  // Score each item based on match quality
-  const scoredItems = items.map(item => {
+  const typoLimit = maxTypos(q.length)
+  const scored: ScoredItem[] = []
+
+  for (const item of items) {
     const title = removeDiacritics(item.title || '')
     const category = removeDiacritics(item.category?.name || '')
     const description = removeDiacritics(item.description || '')
 
-    let bestScore = Infinity
+    let score = Infinity
 
-    // Check exact contains first (best match)
-    if (title.includes(normalizedQuery)) {
-      bestScore = 0
-    } else if (category.includes(normalizedQuery)) {
-      bestScore = 0.5
-    } else if (description.includes(normalizedQuery)) {
-      bestScore = 1
-    } else {
-      // Fuzzy substring matching on title
-      const titleScore = fuzzySubstringScore(title, normalizedQuery, queryLen)
-      const categoryScore = fuzzySubstringScore(category, normalizedQuery, queryLen) + 0.5
-      const descScore = fuzzySubstringScore(description, normalizedQuery, queryLen) + 1
+    // --- Tier 0: Exact substring in title (score 0) ---
+    if (title.includes(q)) {
+      // Bonus if it starts at word boundary
+      const idx = title.indexOf(q)
+      score = (idx === 0 || title[idx - 1] === ' ') ? 0 : 0.1
+    }
+    // --- Tier 1: Exact substring in category (score 1) ---
+    else if (category.includes(q)) {
+      score = 1
+    }
+    // --- Tier 2: Exact substring in description (score 2) ---
+    else if (description.includes(q)) {
+      score = 2
+    }
+    // --- Tier 3: Fuzzy word match in title (score 3+) ---
+    else if (typoLimit > 0) {
+      const titleWords = getWords(title)
+      for (const word of titleWords) {
+        // Compare query against each word (or word prefix if word is longer)
+        const compareTarget = word.length > q.length + 2 ? word.slice(0, q.length + 1) : word
+        const dist = levenshtein(q, compareTarget)
+        if (dist <= typoLimit) {
+          score = Math.min(score, 3 + dist)
+        }
+      }
 
-      bestScore = Math.min(titleScore, categoryScore, descScore)
+      // Also try matching query against word prefixes (user typing partial word)
+      if (score === Infinity) {
+        for (const word of titleWords) {
+          if (word.length >= q.length && word.startsWith(q.slice(0, -1))) {
+            score = Math.min(score, 3.5)
+          }
+        }
+      }
+
+      // Fuzzy word match in category
+      if (score === Infinity) {
+        const catWords = getWords(category)
+        for (const word of catWords) {
+          const compareTarget = word.length > q.length + 2 ? word.slice(0, q.length + 1) : word
+          const dist = levenshtein(q, compareTarget)
+          if (dist <= typoLimit) {
+            score = Math.min(score, 4 + dist)
+          }
+        }
+      }
     }
 
-    return { item, score: bestScore }
-  })
-
-  // Filter items with reasonable scores and sort by score
-  return scoredItems
-    .filter(({ score }) => score <= 3) // Max 3 edits allowed
-    .sort((a, b) => a.score - b.score)
-    .map(({ item }) => item)
-}
-
-// Find best fuzzy substring match score
-function fuzzySubstringScore(text: string, query: string, queryLen: number): number {
-  if (!text || text.length < queryLen - 2) return Infinity
-
-  let bestDistance = Infinity
-
-  // Check substrings of similar length to query
-  for (let len = queryLen - 1; len <= queryLen + 1; len++) {
-    if (len <= 0 || len > text.length) continue
-
-    for (let i = 0; i <= text.length - len; i++) {
-      const substring = text.slice(i, i + len)
-      const distance = levenshteinDistance(query, substring)
-
-      if (distance < bestDistance) {
-        bestDistance = distance
-        if (distance === 0) return 0 // Perfect match, exit early
-      }
+    if (score < Infinity) {
+      scored.push({ item, score })
     }
   }
 
-  return bestDistance
+  return scored
+    .sort((a, b) => a.score - b.score)
+    .map(({ item }) => item)
 }

@@ -11,7 +11,7 @@ import CategoryFilter from "@/components/categories/category-filter"
 import type { FilterValues, SortValue } from "@/components/items/item-filters"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { ServerOffIcon as DatabaseOff, RefreshCcw } from "lucide-react"
+import { ServerOffIcon as DatabaseOff, RefreshCcw, X, Search } from "lucide-react"
 
 const SearchAutocomplete = dynamic(() => import("@/components/search/search-autocomplete"), {
   ssr: false,
@@ -37,7 +37,6 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialItems }: HomeClientProps) {
   const [items, setItems] = useState<Item[]>(initialItems)
-  const [filteredItems, setFilteredItems] = useState<Item[]>(initialItems)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(false)
@@ -58,33 +57,52 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
 
   const router = useRouter()
   const pathname = usePathname()
-
-  // Read search params directly from URL to avoid useSearchParams() which causes
-  // Suspense to show fallback during hydration, replacing SSR content (including LCP image)
-  const readSearchParams = useCallback(() => {
-    if (typeof window === "undefined") return new URLSearchParams()
-    return new URLSearchParams(window.location.search)
-  }, [])
+  const catalogRef = useRef<HTMLDivElement>(null)
 
   // Sync URL params to state on initial load
   useEffect(() => {
-    const params = readSearchParams()
-    const categoryFromUrl = params.get("category")
-    const searchFromUrl = params.get("search")
-    const sortFromUrl = params.get("sort") as SortValue
-    const availabilityFromUrl = params.get("availability") as "all" | "available" | "unavailable"
-    const pageFromUrl = parseInt(params.get("page") || "1")
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search)
+      const categoryFromUrl = params.get("category")
+      const searchFromUrl = params.get("search")
+      const sortFromUrl = params.get("sort") as SortValue
+      const availabilityFromUrl = params.get("availability") as "all" | "available" | "unavailable"
+      const pageFromUrl = parseInt(params.get("page") || "1")
 
-    if (categoryFromUrl) setSelectedCategory(categoryFromUrl)
-    if (searchFromUrl) setSearchQuery(searchFromUrl)
-    if (sortFromUrl && ["newest", "oldest", "price_asc", "price_desc", "name_asc", "name_desc"].includes(sortFromUrl)) {
-      setSortBy(sortFromUrl)
+      setSelectedCategory(categoryFromUrl)
+      setSearchQuery(searchFromUrl || "")
+      if (sortFromUrl && ["newest", "oldest", "price_asc", "price_desc", "name_asc", "name_desc"].includes(sortFromUrl)) {
+        setSortBy(sortFromUrl)
+      }
+      if (availabilityFromUrl && ["all", "available", "unavailable"].includes(availabilityFromUrl)) {
+        setFilters(prev => ({ ...prev, availability: availabilityFromUrl }))
+      }
+      if (pageFromUrl > 0) setCurrentPage(pageFromUrl)
+
+      // Scroll to catalog if there's a search query
+      if (searchFromUrl) {
+        setTimeout(() => catalogRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
+      }
     }
-    if (availabilityFromUrl && ["all", "available", "unavailable"].includes(availabilityFromUrl)) {
-      setFilters(prev => ({ ...prev, availability: availabilityFromUrl }))
+
+    // Handle direct search events from header SearchAutocomplete
+    const handleSearchEvent = (e: Event) => {
+      const query = (e as CustomEvent).detail as string
+      setSearchQuery(query)
+      setCurrentPage(1)
+      setTimeout(() => catalogRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
     }
-    if (pageFromUrl > 0) setCurrentPage(pageFromUrl)
-  }, []) // Only run once on mount
+
+    syncFromUrl()
+
+    window.addEventListener("popstate", syncFromUrl)
+    window.addEventListener("app:search", handleSearchEvent)
+
+    return () => {
+      window.removeEventListener("popstate", syncFromUrl)
+      window.removeEventListener("app:search", handleSearchEvent)
+    }
+  }, [])
 
   // Update URL when filters change
   const updateUrl = useCallback((updates: Record<string, string | number | null>) => {
@@ -113,6 +131,14 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
     setSearchQuery(query)
     setCurrentPage(1)
     updateUrl({ search: query || null, page: null })
+    // Scroll to catalog after search
+    setTimeout(() => catalogRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
+  }, [updateUrl])
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("")
+    setCurrentPage(1)
+    updateUrl({ search: null, page: null })
   }, [updateUrl])
 
   const handleSortChange = useCallback((sort: SortValue) => {
@@ -124,7 +150,7 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
     setFilters(newFilters)
     setCurrentPage(1)
     updateUrl({
-      availability: newFilters.availability === "all" ? null : newFilters.availability,
+      availability: newFilters.availability === "all" ? null : newFilters.availability ?? null,
       page: null
     })
   }, [updateUrl])
@@ -167,7 +193,7 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
     }
   }, [])
 
-  // Funkce pro filtrování a řazení předmětů - optimalizováno
+  // Filter and sort items — computed directly, no effect delay
   const filteredAndSortedItems = useMemo(() => {
     let result = [...items]
 
@@ -221,18 +247,19 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
     return result
   }, [items, selectedCategory, searchQuery, filters, sortBy])
 
-  useEffect(() => {
-    setFilteredItems(filteredAndSortedItems)
-    setCurrentPage(1)
-  }, [filteredAndSortedItems])
-
+  // Paginate directly from the memo — no intermediate state
   const displayedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
     const endIndex = startIndex + ITEMS_PER_PAGE
-    return filteredItems.slice(startIndex, endIndex)
-  }, [filteredItems, currentPage])
+    return filteredAndSortedItems.slice(startIndex, endIndex)
+  }, [filteredAndSortedItems, currentPage])
 
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filteredAndSortedItems.length / ITEMS_PER_PAGE)
+
+  // Reset page when filtered results change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedCategory, filters, sortBy])
 
   const minMaxPrice = useMemo(() => {
     if (items.length === 0) return { min: 0, max: 10000 }
@@ -245,7 +272,7 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
   }, [items])
 
   const paginationItems = useMemo(() => {
-    const pages: JSX.Element[] = []
+    const pages: React.JSX.Element[] = []
 
     if (totalPages <= 1) return pages
 
@@ -309,6 +336,8 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
     setCurrentPage(1)
     router.push(pathname, { scroll: false })
   }, [minMaxPrice, router, pathname])
+
+  const hasActiveSearch = searchQuery.length > 0
 
   if (loading) {
     return (
@@ -401,63 +430,96 @@ export default function HomeClient({ initialItems }: HomeClientProps) {
         activeSort={sortBy}
       />
 
-      {/* Nadpis sekce */}
-      <div className="flex justify-between items-center mb-4 sm:mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold">
-          {selectedCategory || searchQuery || Object.keys(filters).length > 0
-            ? "Filtrované předměty"
-            : "Všechny předměty"}
-          <span className="text-gray-500 text-base sm:text-lg ml-2">({filteredItems.length})</span>
-        </h2>
-      </div>
+      {/* Catalog section */}
+      <div ref={catalogRef}>
+        {/* Active search indicator */}
+        {hasActiveSearch && (
+          <div className="flex items-center gap-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <Search className="h-4 w-4 text-blue-600 flex-shrink-0" />
+            <span className="text-sm text-blue-800">
+              Výsledky pro: <strong>&quot;{searchQuery}&quot;</strong>
+            </span>
+            <span className="text-sm text-blue-600">({filteredAndSortedItems.length} {filteredAndSortedItems.length === 1 ? "předmět" : "předmětů"})</span>
+            <button
+              onClick={handleClearSearch}
+              className="ml-auto text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100"
+              aria-label="Zrušit hledání"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
-      {/* Zobrazení předmětů */}
-      {filteredItems.length > 0 ? (
-        <>
-          <ItemGrid items={displayedItems} />
-
-          {/* Stránkování */}
-          {totalPages > 1 && (
-            <Pagination className="mt-6 sm:mt-8">
-              <PaginationContent className="gap-1 sm:gap-2">
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="touch-target-sm"
-                  />
-                </PaginationItem>
-
-                {/* Mobile: show current page indicator */}
-                <PaginationItem className="sm:hidden">
-                  <span className="flex h-9 items-center justify-center px-3 text-sm">
-                    {currentPage} / {totalPages}
-                  </span>
-                </PaginationItem>
-
-                {/* Desktop: show page numbers */}
-                {paginationItems}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="touch-target-sm"
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </>
-      ) : (
-        <div className="text-center py-16 bg-gray-50 rounded-lg">
-          <h3 className="text-xl font-medium text-gray-700 mb-2">Žádné předměty nenalezeny</h3>
-          <p className="text-gray-500 mb-6">Zkuste upravit filtry nebo vyhledávání pro zobrazení více předmětů.</p>
-          <Button onClick={handleResetFilters}>
-            Resetovat všechny filtry
-          </Button>
+        {/* Nadpis sekce */}
+        <div className="flex justify-between items-center mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-semibold">
+            {hasActiveSearch
+              ? "Výsledky hledání"
+              : selectedCategory
+                ? "Filtrované předměty"
+                : "Všechny předměty"}
+            {!hasActiveSearch && (
+              <span className="text-gray-500 text-base sm:text-lg ml-2">({filteredAndSortedItems.length})</span>
+            )}
+          </h2>
         </div>
-      )}
+
+        {/* Zobrazení předmětů */}
+        {filteredAndSortedItems.length > 0 ? (
+          <>
+            <ItemGrid items={displayedItems} />
+
+            {/* Stránkování */}
+            {totalPages > 1 && (
+              <Pagination className="mt-6 sm:mt-8">
+                <PaginationContent className="gap-1 sm:gap-2">
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="touch-target-sm"
+                    />
+                  </PaginationItem>
+
+                  {/* Mobile: show current page indicator */}
+                  <PaginationItem className="sm:hidden">
+                    <span className="flex h-9 items-center justify-center px-3 text-sm">
+                      {currentPage} / {totalPages}
+                    </span>
+                  </PaginationItem>
+
+                  {/* Desktop: show page numbers */}
+                  {paginationItems}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="touch-target-sm"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-16 bg-gray-50 rounded-lg">
+            <h3 className="text-xl font-medium text-gray-700 mb-2">
+              {hasActiveSearch
+                ? `Žádné předměty pro "${searchQuery}"`
+                : "Žádné předměty nenalezeny"}
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {hasActiveSearch
+                ? "Zkuste jiný hledaný výraz nebo resetujte filtry."
+                : "Zkuste upravit filtry nebo vyhledávání pro zobrazení více předmětů."}
+            </p>
+            <Button onClick={handleResetFilters}>
+              Resetovat všechny filtry
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

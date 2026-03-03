@@ -21,6 +21,7 @@ import { cs } from "date-fns/locale"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { RENTAL_DISCOUNTS, findApplicableDiscount } from "@/lib/constants"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -40,19 +41,6 @@ interface BookedDate {
   date: Date
   status: "pending" | "confirmed" | "active" | "completed" | "cancelled"
 }
-
-interface Discount {
-  days: number
-  percentage: number
-  label: string
-}
-
-// Slevy pro delší rezervace
-const DISCOUNTS: Discount[] = [
-  { days: 7, percentage: 10, label: "Týden" },
-  { days: 14, percentage: 15, label: "2 týdny" },
-  { days: 30, percentage: 20, label: "Měsíc" },
-]
 
 // Pomocná funkce pro vytvoření pole dnů v měsíci
 const getDaysInMonth = (year: number, month: number) => {
@@ -106,15 +94,6 @@ const getYears = () => {
     value: (currentYear + i).toString(),
     label: (currentYear + i).toString(),
   }))
-}
-
-// Pomocná funkce pro nalezení aplikovatelné slevy
-const findApplicableDiscount = (days: number): Discount | null => {
-  // Seřadíme slevy od největší po nejmenší
-  const sortedDiscounts = [...DISCOUNTS].sort((a, b) => b.days - a.days)
-
-  // Najdeme první slevu, která je aplikovatelná
-  return sortedDiscounts.find((discount) => days >= discount.days) || null
 }
 
 export default function BookingCalendar({
@@ -610,7 +589,7 @@ export default function BookingCalendar({
               Dostupné slevy:
             </h4>
             <div className="grid grid-cols-3 gap-1 sm:gap-2">
-              {DISCOUNTS.map((discount) => (
+              {RENTAL_DISCOUNTS.map((discount) => (
                 <div key={discount.days} className="border rounded-md p-1.5 sm:p-2 text-center bg-green-50">
                   <div className="text-xs sm:text-sm font-medium text-green-700">{discount.label}</div>
                   <div className="text-base sm:text-lg font-bold text-green-600">-{discount.percentage}%</div>
@@ -719,7 +698,7 @@ export default function BookingCalendar({
             <li>Červeně označené dny jsou již rezervované a nelze je vybrat.</li>
             <li>Žlutě označené dny mají čekající rezervace a nelze je vybrat.</li>
             <li>Pro rychlý výběr můžete použít přednastavené časové úseky.</li>
-            {DISCOUNTS.length > 0 && <li>Při rezervaci na delší dobu získáte automatickou slevu.</li>}
+            {RENTAL_DISCOUNTS.length > 0 && <li>Při rezervaci na delší dobu získáte automatickou slevu.</li>}
           </ul>
         </div>
       </div>

@@ -13,6 +13,14 @@ import type {
 // Přidání importu pro content filter
 import { filterInappropriateContent, logInappropriateContent, type ContentFilterResult } from "./content-filter"
 
+// UUID format validation for safe .or() interpolation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function assertValidUUID(value: string): void {
+  if (!UUID_REGEX.test(value)) {
+    throw new Error(`Invalid UUID format: ${value}`)
+  }
+}
+
 // Cache pro items a categories
 let itemsCache: { data: Item[] | null; timestamp: number } = { data: null, timestamp: 0 }
 let categoriesCache: { data: Category[] | null; timestamp: number } = { data: null, timestamp: 0 }
@@ -83,9 +91,9 @@ export const db = {
       updated_at: new Date().toISOString(),
     }
 
-    // Pokud se aktualizuje avatar_url na null, explicitně to nastavíme
-    if ('avatar_url' in userData && userData.avatar_url === null) {
-      updateData.avatar_url = undefined
+    // Pokud se aktualizuje avatar_url na null/undefined, explicitně pošleme null do DB
+    if ('avatar_url' in userData && !userData.avatar_url) {
+      (updateData as any).avatar_url = null
     }
 
     // Pokud se aktualizuje privacy_settings, ujistíme se, že je to objekt
@@ -622,9 +630,7 @@ export const db = {
 
   // Chat
   async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
-    // Use parameterized OR filter to prevent SQL injection
-    // Supabase's .or() with template literals is safe when using .eq() format
-    // but we use explicit filter for clarity and safety
+    assertValidUUID(userId)
     const { data, error } = await supabase
       .from("chat_rooms")
       .select(`
@@ -633,7 +639,7 @@ export const db = {
         owner:users!chat_rooms_owner_id_fkey(*),
         borrower:users!chat_rooms_borrower_id_fkey(*)
       `)
-      .or(`owner_id.eq."${userId}",borrower_id.eq."${userId}"`)
+      .or(`owner_id.eq.${userId},borrower_id.eq.${userId}`)
       .order("updated_at", { ascending: false })
 
     if (error) {
@@ -973,7 +979,7 @@ export const db = {
   },
 
   async getUnreadMessageCount(userId: string): Promise<number> {
-    // Získáme všechny místnosti, kde je uživatel
+    assertValidUUID(userId)
     const { data: rooms, error: roomsError } = await supabase
       .from("chat_rooms")
       .select("id")

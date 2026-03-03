@@ -34,7 +34,7 @@ export default function ChatList({ rooms, loading, selectedRoomId, onSelectRoom 
 
       for (const room of rooms) {
         try {
-          const { data, error } = await supabase
+          const { count, error } = await supabase
             .from("chat_messages")
             .select("id", { count: "exact", head: true })
             .eq("room_id", room.id)
@@ -45,7 +45,7 @@ export default function ChatList({ rooms, loading, selectedRoomId, onSelectRoom 
             console.error(`Error counting unread messages for room ${room.id}:`, error)
             counts[room.id] = 0
           } else {
-            counts[room.id] = data || 0
+            counts[room.id] = count ?? 0
           }
         } catch (error) {
           console.error(`Error counting unread messages for room ${room.id}:`, error)

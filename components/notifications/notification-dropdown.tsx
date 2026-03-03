@@ -17,15 +17,7 @@ import { useAuth } from "@/lib/auth"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import { useRouter } from "next/navigation"
-
-export type Notification = {
-  id: string
-  created_at: string
-  title: string
-  message: string
-  type: string
-  is_read: boolean
-}
+import type { Notification } from "@/lib/types"
 
 export default function NotificationDropdown() {
   const { user } = useAuth()

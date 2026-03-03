@@ -63,7 +63,7 @@ export default function MessagesPage() {
 
   if (!user) {
     return (
-      <div className="flex justify-center items-center h-[calc(100vh-57px)]">
+      <div className="flex justify-center items-center h-full">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Zprávy</h1>
           <p>Pro zobrazení zpráv se musíte přihlásit.</p>
@@ -73,7 +73,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Left sidebar - chat list */}
       <div className={`w-full md:w-[360px] md:border-r border-gray-200 flex flex-col bg-white flex-shrink-0 ${selectedRoomId ? "hidden md:flex" : "flex"}`}>
         <div className="px-4 py-4 border-b border-gray-200">

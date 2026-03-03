@@ -1,49 +1,25 @@
-import { createClient } from "@supabase/supabase-js"
 import { Suspense } from "react"
 import { preload } from "react-dom"
 import { getImageProps } from "next/image"
 import HomeClient from "./home-client"
-import type { Item } from "@/lib/types"
-
-async function getInitialItems(): Promise<Item[]> {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    )
-
-    const { data, error } = await supabase
-      .from("items")
-      .select(`
-        *,
-        owner:users!items_owner_id_fkey(*),
-        category:categories!items_category_id_fkey(*)
-      `)
-      .eq("is_available", true)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("Server fetch error:", error)
-      return []
-    }
-
-    return (data as Item[]) || []
-  } catch (error) {
-    console.error("Server fetch failed:", error)
-    return []
-  }
-}
+import { db } from "@/lib/database"
 
 export const revalidate = 30
 
 export default async function HomePage() {
-  const initialItems = await getInitialItems()
+  let initialItems: Awaited<ReturnType<typeof db.getItems>> = []
+  try {
+    initialItems = await db.getItems()
+  } catch (error) {
+    console.error("Server fetch failed:", error)
+  }
 
   // Preload the LCP image before Suspense boundary so it's in the initial HTML stream
   const lcpImageUrl = initialItems[0]?.images?.[0]
   if (lcpImageUrl) {
     const { props } = getImageProps({
       src: lcpImageUrl,
+      alt: "",
       fill: true,
       sizes: "(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) calc(50vw - 40px), (max-width: 1280px) 33vw, 25vw",
       quality: 75,

@@ -3,7 +3,7 @@ export const CONDITION_LABELS = {
   excellent: "Vyborny",
   very_good: "Velmi dobry",
   good: "Dobry",
-  fair: "Uspokojivry",
+  fair: "Uspokojiv",
   poor: "Spatny",
 } as const
 
