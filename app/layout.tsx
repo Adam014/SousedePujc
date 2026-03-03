@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/layout/header"
 import { AuthProvider } from "@/lib/auth"
 import { ErrorBoundary } from "@/components/error/error-boundary"
-import { Suspense } from "react"
 import ChatPopup from "@/components/chat/chat-popup-lazy"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -31,9 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>
               <div className="flex flex-col min-h-screen">
                 <Header />
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center">Načítání...</div>}>
-                  <main className="flex-1">{children}</main>
-                </Suspense>
+                <main className="flex-1">{children}</main>
                 <ChatPopup />
                 <Toaster />
               </div>

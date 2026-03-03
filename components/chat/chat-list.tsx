@@ -2,11 +2,9 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import type { ChatRoom } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card, CardContent } from "@/components/ui/card"
 import { formatDistanceToNow } from "date-fns"
 import { cs } from "date-fns/locale"
 import { supabase } from "@/lib/supabase"
@@ -14,11 +12,12 @@ import { supabase } from "@/lib/supabase"
 interface ChatListProps {
   rooms: ChatRoom[]
   loading: boolean
+  selectedRoomId?: string | null
+  onSelectRoom?: (roomId: string) => void
 }
 
-export default function ChatList({ rooms, loading }: ChatListProps) {
+export default function ChatList({ rooms, loading, selectedRoomId, onSelectRoom }: ChatListProps) {
   const { user } = useAuth()
-  const router = useRouter()
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
 
   // Stabilní reference na room IDs pro dependency array
@@ -72,7 +71,6 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
           table: "chat_messages",
         },
         () => {
-          // Při jakékoliv změně v chat_messages aktualizujeme počty nepřečtených zpráv
           if (isMounted) {
             loadUnreadCounts()
           }
@@ -102,7 +100,7 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
 
   if (rooms.length === 0) {
     return (
-      <div className="text-center py-12">
+      <div className="text-center py-12 px-4">
         <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
           <span className="text-2xl">💬</span>
         </div>
@@ -113,42 +111,60 @@ export default function ChatList({ rooms, loading }: ChatListProps) {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="flex flex-col">
       {rooms.map((room) => {
         const otherUser = getOtherUser(room)
         const unreadCount = unreadCounts[room.id] || 0
+        const isSelected = selectedRoomId === room.id
+
+        const rowContent = (
+          <div
+            className={`flex items-center px-3 py-2.5 cursor-pointer transition-colors ${
+              isSelected
+                ? "bg-blue-50"
+                : "hover:bg-gray-100"
+            }`}
+          >
+            <Avatar className="h-12 w-12 flex-shrink-0">
+              <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
+              <AvatarFallback className="text-sm">{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
+            </Avatar>
+            <div className="ml-3 flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <h3 className={`text-sm truncate ${unreadCount > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900"}`}>
+                  {otherUser?.name || "Neznámý uživatel"}
+                </h3>
+                <span className="text-[11px] text-gray-400 ml-2 flex-shrink-0">
+                  {room.last_message_time
+                    ? formatDistanceToNow(new Date(room.last_message_time), { addSuffix: false, locale: cs })
+                    : ""}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <p className={`text-[13px] truncate ${unreadCount > 0 ? "text-gray-900 font-medium" : "text-gray-500"}`}>
+                  {room.last_message || "Žádné zprávy"}
+                </p>
+                {unreadCount > 0 && (
+                  <span className="bg-blue-600 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 ml-2 flex-shrink-0">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+
+        if (onSelectRoom) {
+          return (
+            <div key={room.id} onClick={() => onSelectRoom(room.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onSelectRoom(room.id)}>
+              {rowContent}
+            </div>
+          )
+        }
 
         return (
           <Link key={room.id} href={`/messages/${room.id}`} className="block">
-            <Card className={`hover:shadow-md transition-shadow ${unreadCount > 0 ? "bg-blue-50" : ""}`}>
-              <CardContent className="p-4">
-                <div className="flex items-center">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={otherUser?.avatar_url || "/placeholder-user.jpg"} alt={otherUser?.name || ""} />
-                    <AvatarFallback>{otherUser?.name?.charAt(0) || "?"}</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-gray-900">{otherUser?.name || "Neznámý uživatel"}</h3>
-                      <span className="text-xs text-gray-500">
-                        {room.last_message_time
-                          ? formatDistanceToNow(new Date(room.last_message_time), { addSuffix: true, locale: cs })
-                          : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-sm text-gray-600 truncate max-w-[70%]">
-                        {room.last_message || "Žádné zprávy"}
-                      </p>
-                      {unreadCount > 0 && (
-                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5">{unreadCount}</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 truncate">{room.item?.title || ""}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {rowContent}
           </Link>
         )
       })}

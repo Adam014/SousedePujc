@@ -437,20 +437,6 @@ export const db = {
       throw error
     }
 
-    // Po vytvoření rezervace vytvoříme chatovací místnost
-    if (data && data.item) {
-      try {
-        await this.createChatRoom({
-          booking_id: data.id,
-          item_id: data.item_id,
-          owner_id: data.item.owner_id,
-          borrower_id: data.borrower_id,
-        })
-      } catch (chatError) {
-        console.error("Error creating chat room:", chatError)
-      }
-    }
-
     return data
   },
 

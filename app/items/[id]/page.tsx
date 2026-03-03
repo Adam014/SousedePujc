@@ -174,7 +174,25 @@ export default function ItemDetailPage() {
           sender_id: user.id,
           message: `Zdravím, mám zájem o půjčení předmětu "${item.title}" od ${selectedDates.from.toLocaleDateString("cs-CZ")} do ${selectedDates.to.toLocaleDateString("cs-CZ")}.${message ? ` ${message}` : ""}`,
         })
+
+        // Notifikace o novém chatu pro majitele
+        await db.createNotification({
+          user_id: item.owner_id,
+          title: "Nová zpráva v chatu",
+          message: `${user.name} vám poslal/a zprávu ohledně předmětu "${item.title}"`,
+          type: "new_message",
+          is_read: false,
+        })
       }
+
+      // Notifikace pro žadatele o potvrzení odeslání
+      await db.createNotification({
+        user_id: user.id,
+        title: "Žádost o půjčení odeslána",
+        message: `Vaše žádost o půjčení předmětu "${item.title}" byla odeslána. Čekejte na odpověď majitele.`,
+        type: "booking_request",
+        is_read: false,
+      })
 
       setSuccess("Žádost o půjčení byla odeslána! Majitel vás bude kontaktovat.")
       // Reset to today and refresh calendar
