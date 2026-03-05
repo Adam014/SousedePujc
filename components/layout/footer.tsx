@@ -90,7 +90,9 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-1 text-xs text-gray-400 order-1 sm:order-2">
               <span>Vytvořeno s</span>
-              <Heart className="h-3 w-3 text-red-400 fill-red-400 animate-pulse" />
+              <a href="https://rustai.cz" target="_blank" rel="noopener noreferrer" className="inline-flex hover:scale-150 transition-transform duration-300" title="🤖">
+                <Heart className="h-3 w-3 text-red-400 fill-red-400 animate-pulse" />
+              </a>
               <span>pro sousedy</span>
             </div>
             <Link
