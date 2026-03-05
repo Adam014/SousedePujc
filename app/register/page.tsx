@@ -29,8 +29,14 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const { register } = useAuth()
+  const { user, register } = useAuth()
   const router = useRouter()
+
+  // Přesměrování přihlášeného uživatele na profil
+  if (user) {
+    router.replace("/profile")
+    return null
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

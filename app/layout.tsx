@@ -3,6 +3,7 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import Header from "@/components/layout/header"
+import Footer from "@/components/layout/footer"
 import { AuthProvider } from "@/lib/auth"
 import { ErrorBoundary } from "@/components/error/error-boundary"
 import ChatPopup from "@/components/chat/chat-popup-lazy"
@@ -28,9 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
-              <div className="flex flex-col h-screen">
+              <div className="flex flex-col min-h-screen">
                 <Header />
-                <main className="flex-1 overflow-y-auto">{children}</main>
+                <main className="flex-1">{children}</main>
+                <Footer />
                 <ChatPopup />
                 <Toaster />
               </div>

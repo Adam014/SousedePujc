@@ -24,8 +24,14 @@ export default function LoginPage() {
   const [resendingVerification, setResendingVerification] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const { login, resendVerification } = useAuth()
+  const { user, login, resendVerification } = useAuth()
   const router = useRouter()
+
+  // Přesměrování přihlášeného uživatele na profil
+  if (user) {
+    router.replace("/profile")
+    return null
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
