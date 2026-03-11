@@ -21,9 +21,11 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
     try {
       setUploading(true)
 
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) throw new Error("Not authenticated")
       const fileExt = file.name.split(".").pop()
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `chat-files/${type}s/${fileName}`
+      const filePath = `${authUser.id}/${fileName}`
 
       const { error: uploadError } = await supabase.storage.from("chat-files").upload(filePath, file)
 

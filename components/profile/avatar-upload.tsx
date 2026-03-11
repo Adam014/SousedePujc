@@ -37,11 +37,11 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
         return
       }
 
-      // Kontrola velikosti souboru (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
+      // Kontrola velikosti souboru (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
         toast({
           title: "Soubor je příliš velký",
-          description: "Maximální velikost souboru je 2MB.",
+          description: "Maximální velikost souboru je 10MB.",
           variant: "destructive",
         })
         setUploading(false)
@@ -50,8 +50,8 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
 
       // Vytvoření unikátního názvu souboru
       const fileExt = file.name.split(".").pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `avatars/${fileName}`
+      const fileName = `${Date.now()}.${fileExt}`
+      const filePath = `${user.id}/${fileName}`
 
       // Nahrání souboru do Supabase Storage
       const { error: uploadError, data } = await supabase.storage
@@ -106,11 +106,12 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
         return
       }
 
-      // Extrahování názvu souboru z URL
-      const fileName = avatarUrl.split("/").pop()
-      if (fileName) {
+      // Extrahování cesty souboru z URL (formát: .../avatars/{userId}/{filename})
+      const parts = avatarUrl.split("/avatars/")
+      const storagePath = parts.length > 1 ? parts[parts.length - 1] : null
+      if (storagePath) {
         // Odstranění souboru ze Storage
-        const { error } = await supabase.storage.from("avatars").remove([`avatars/${fileName}`])
+        const { error } = await supabase.storage.from("avatars").remove([storagePath])
         if (error) {
           console.error("Error removing avatar from storage:", error)
         }
@@ -176,7 +177,7 @@ export default function AvatarUpload({ user, onAvatarUpdate }: AvatarUploadProps
             </Button>
           )}
         </div>
-        <p className="text-sm text-gray-500">JPG, PNG nebo GIF (max. 2MB)</p>
+        <p className="text-sm text-gray-500">JPG, PNG nebo GIF (max. 10MB)</p>
         <input
           type="file"
           ref={fileInputRef}

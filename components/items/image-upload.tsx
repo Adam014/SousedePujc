@@ -58,9 +58,11 @@ export default function ImageUpload({ maxImages, onImagesChange, initialImages =
       }
 
       try {
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (!authUser) throw new Error("Not authenticated")
         const fileExt = file.name.split(".").pop()
         const fileName = `${uuidv4()}.${fileExt}`
-        const filePath = `items/${fileName}`
+        const filePath = `${authUser.id}/${fileName}`
 
         const { error: uploadError, data } = await supabase.storage.from("images").upload(filePath, file)
 
